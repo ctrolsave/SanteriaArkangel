@@ -79,7 +79,8 @@ header.site-header {
 
 /* Hero */
 .hero {
-  position: relative; padding: 56px 16px 0; overflow: hidden; border-bottom: 1px solid var(--line);
+  position: relative; padding: 40px 16px 0; overflow: hidden; border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; min-height: 480px;
   background:
     radial-gradient(ellipse 260px 120px at 12% 20%, rgba(255,255,255,0.9), rgba(255,255,255,0) 70%),
     radial-gradient(ellipse 320px 140px at 85% 15%, rgba(255,255,255,0.85), rgba(255,255,255,0) 70%),
@@ -87,12 +88,13 @@ header.site-header {
     radial-gradient(ellipse 220px 100px at 20% 85%, rgba(255,255,255,0.6), rgba(255,255,255,0) 70%),
     linear-gradient(180deg, #bfe6f7 0%, #dcf1fa 55%, #ffffff 100%);
 }
+@media (min-width: 768px) { .hero { min-height: 640px; } }
 .hero.has-image { background-size: cover; background-position: center; }
 .hero.has-image::before {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(100deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 72%);
 }
-.hero-content { position: relative; max-width: 640px; }
+.hero-content { position: relative; max-width: 640px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
 .hero-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; position: relative; }
 .hero-cat-btn {
   background: rgba(255,255,255,0.75); color: var(--deep); font-weight: 600; font-size: 0.82rem;
@@ -129,6 +131,7 @@ header.site-header {
 .hero-divider span { flex: 1; height: 1px; background: rgba(28,95,125,0.3); }
 .hero p.sub { color: var(--text); opacity: 0.75; margin: 0 0 20px; position: relative; }
 .hero-cta {
+  align-self: flex-start;
   display: inline-flex; align-items: center; gap: 8px; padding: 12px 26px; border-radius: 999px;
   background: var(--accent-soft); color: #fff; font-weight: 600; font-size: 0.9rem; letter-spacing: 0.02em;
   text-decoration: none; position: relative; box-shadow: 0 8px 20px rgba(18,50,74,0.18);
