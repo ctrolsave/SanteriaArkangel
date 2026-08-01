@@ -153,3 +153,32 @@ CREATE TABLE IF NOT EXISTS admin_login_attempts (
   ip VARCHAR(45) NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Lo mismo que admin_login_attempts, pero para el login de clientes. Se
+-- limita por email (no por IP) para no bloquear a otros clientes que
+-- compartan red mientras alguien intenta adivinar la clave de una cuenta puntual.
+CREATE TABLE IF NOT EXISTS customer_login_attempts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  email VARCHAR(150) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Registra cuentas nuevas creadas por IP, para frenar registro masivo automatizado.
+CREATE TABLE IF NOT EXISTS registration_attempts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ip VARCHAR(45) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tokens de "olvidé mi contraseña": se guarda el hash del token (nunca el
+-- token en texto plano) con vencimiento, para que el link de recuperación
+-- que se manda por email sea de un solo uso y expire solo.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  customer_id INT NOT NULL,
+  token_hash VARCHAR(64) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

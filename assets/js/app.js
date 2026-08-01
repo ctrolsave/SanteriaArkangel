@@ -21,6 +21,7 @@ let STATE = {
 
 /* ---------------- API helper ---------------- */
 let CSRF_TOKEN = null;
+let RESET_TOKEN = null; // token de "olvidé mi contraseña" leído de la URL (?reset=...)
 
 async function api(path, { method = "GET", json = null, form = null } = {}) {
   const opts = { method, credentials: "include" };
@@ -704,16 +705,68 @@ function renderAccount(tab) {
   const el = document.getElementById("account-content");
 
   if (!STATE.customer) {
-    el.innerHTML = `
-      <div class="tabs">
-        <button class="tab-btn ${tab === "login" ? "active" : ""}" data-tab="login">Iniciar sesión</button>
-        <button class="tab-btn ${tab === "register" ? "active" : ""}" data-tab="register">Crear cuenta</button>
-      </div>
-      <div id="account-tab-body"></div>
-    `;
-    el.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => renderAccount(b.dataset.tab)));
+    if (tab === "forgot" || tab === "reset") {
+      el.innerHTML = `<div id="account-tab-body"></div>`;
+    } else {
+      el.innerHTML = `
+        <div class="tabs">
+          <button class="tab-btn ${tab === "login" ? "active" : ""}" data-tab="login">Iniciar sesión</button>
+          <button class="tab-btn ${tab === "register" ? "active" : ""}" data-tab="register">Crear cuenta</button>
+        </div>
+        <div id="account-tab-body"></div>
+      `;
+      el.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => renderAccount(b.dataset.tab)));
+    }
 
     const body = document.getElementById("account-tab-body");
+    if (tab === "forgot") {
+      body.innerHTML = `
+        <h3 class="display" style="font-size:1.3rem; margin-bottom:6px;">Recuperar contraseña</h3>
+        <p style="color:var(--muted); font-size:0.85rem; margin-bottom:14px;">Ingresá tu email y te mandamos un link para elegir una contraseña nueva.</p>
+        <div class="field"><label class="field-label">Email</label><input type="email" id="forgot-email"></div>
+        <p class="error-text hidden" id="forgot-error"></p>
+        <p class="hidden" id="forgot-success" style="color:var(--muted); font-size:0.85rem; margin-bottom:10px;">Si ese email está registrado, te va a llegar un correo con el link (revisá también la carpeta de spam).</p>
+        <button class="btn-primary" id="forgot-submit">Enviar link</button>
+        <p style="text-align:center; margin-top:12px; font-size:0.82rem;"><a href="#" id="back-to-login" style="color:var(--accent);">← Volver a iniciar sesión</a></p>
+      `;
+      document.getElementById("back-to-login").addEventListener("click", (e) => { e.preventDefault(); renderAccount("login"); });
+      document.getElementById("forgot-submit").addEventListener("click", async (e) => {
+        const btn = e.currentTarget;
+        try {
+          await api("forgot_password.php", { method: "POST", json: { email: document.getElementById("forgot-email").value } });
+          document.getElementById("forgot-error").classList.add("hidden");
+          document.getElementById("forgot-success").classList.remove("hidden");
+          btn.disabled = true;
+        } catch (err) {
+          const errEl = document.getElementById("forgot-error");
+          errEl.textContent = err.message; errEl.classList.remove("hidden");
+        }
+      });
+      return;
+    }
+    if (tab === "reset") {
+      body.innerHTML = `
+        <h3 class="display" style="font-size:1.3rem; margin-bottom:6px;">Elegí tu nueva contraseña</h3>
+        <div class="field"><label class="field-label">Contraseña nueva</label>${pwFieldHtml("reset-pass", 'minlength="8" placeholder="Mínimo 8 caracteres"')}</div>
+        <p class="error-text hidden" id="reset-error"></p>
+        <button class="btn-primary" id="reset-submit">Guardar contraseña</button>
+      `;
+      document.getElementById("reset-submit").addEventListener("click", async () => {
+        try {
+          await api("reset_password.php", { method: "POST", json: {
+            token: RESET_TOKEN,
+            pass: document.getElementById("reset-pass").value,
+          }});
+          RESET_TOKEN = null;
+          showToast("Contraseña actualizada. Ya podés iniciar sesión.");
+          renderAccount("login");
+        } catch (err) {
+          const errEl = document.getElementById("reset-error");
+          errEl.textContent = err.message; errEl.classList.remove("hidden");
+        }
+      });
+      return;
+    }
     if (tab === "register") {
       body.innerHTML = `
         <div class="field"><label class="field-label">Nombre y apellido</label><input type="text" id="reg-name"></div>
@@ -742,9 +795,11 @@ function renderAccount(tab) {
       body.innerHTML = `
         <div class="field"><label class="field-label">Email</label><input type="email" id="login-email"></div>
         <div class="field"><label class="field-label">Contraseña</label>${pwFieldHtml("login-pass")}</div>
+        <p style="text-align:right; margin:-4px 0 10px;"><a href="#" id="forgot-link" style="color:var(--accent); font-size:0.8rem;">¿Olvidaste tu contraseña?</a></p>
         <p class="error-text hidden" id="login-error"></p>
         <button class="btn-primary" id="login-submit">Entrar</button>
       `;
+      document.getElementById("forgot-link").addEventListener("click", (e) => { e.preventDefault(); renderAccount("forgot"); });
       document.getElementById("login-submit").addEventListener("click", async () => {
         try {
           await api("customer_login.php", { method: "POST", json: {
@@ -1543,6 +1598,11 @@ function renderAdminSettings() {
   if (view === "novedades" || view === "ofertas") {
     STATE.viewFilter = view;
   }
+  const resetToken = params.get("reset");
+  if (resetToken) {
+    RESET_TOKEN = resetToken;
+    history.replaceState(null, "", window.location.pathname); // saca el token de la URL visible
+  }
 
   try { CSRF_TOKEN = (await api("csrf.php")).token; } catch (e) {}
 
@@ -1551,6 +1611,10 @@ function renderAdminSettings() {
   await loadProducts();
   await refreshCustomerSession();
   await refreshAdminSession();
+
+  if (RESET_TOKEN && !STATE.customer) {
+    openAccount("reset");
+  }
 
   if (STATE.viewFilter) {
     const banner = document.getElementById("view-filter-banner");

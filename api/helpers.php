@@ -158,6 +158,28 @@ function options_label($product, $selection) {
 }
 
 /**
+ * Manda el email con el link para restablecer la contraseña. El link lleva el
+ * token en texto plano (por eso viaja solo por email, nunca se guarda así en
+ * la base — ver password_resets.token_hash), y expira solo por su fecha.
+ */
+function send_password_reset_email($conn, $email, $customerName, $token) {
+    $row = $conn->query('SELECT store_name FROM settings WHERE id = 1')->fetch_assoc();
+    $storeName = ($row['store_name'] ?? '') ?: 'tu tienda';
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $link = "$scheme://$host/index.html?reset=" . urlencode($token);
+
+    $subject = "Recuperar tu contraseña en $storeName";
+    $body = "Hola" . ($customerName ? " $customerName" : "") . ",\n\n"
+          . "Pediste recuperar tu contraseña en $storeName.\n"
+          . "Entrá a este link para elegir una nueva (válido por 1 hora):\n$link\n\n"
+          . "Si no fuiste vos, ignorá este mensaje — tu contraseña actual sigue funcionando.";
+    $headers = "Content-Type: text/plain; charset=UTF-8\r\nFrom: $storeName <no-reply@$host>";
+    @mail($email, $subject, $body, $headers);
+}
+
+/**
  * Le avisa al administrador que entró un pedido nuevo, por email y por WhatsApp
  * (si configuró esos datos en Administrar > Configuración). Si algo falla,
  * no interrumpe la creación del pedido — solo no llega el aviso.
