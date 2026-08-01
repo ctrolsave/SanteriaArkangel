@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Código de ética — Santería Arkangel</title>
+<link rel="stylesheet" href="assets/css/style.css">
+<style>
+  .page-wrap { max-width: 760px; margin: 0 auto; padding: 40px 16px 60px; }
+  .page-wrap h2 { font-size: 2rem; margin-bottom: 18px; }
+  .page-wrap p { color: var(--muted); line-height: 1.7; white-space: pre-line; margin-bottom: 14px; }
+  .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--accent); text-decoration: none; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <a href="index.html" class="brand" style="text-decoration:none;">
+    <img id="brand-logo" src="assets/img/logo-arkangel.png" alt="Logo">
+    <h1 class="display" id="brand-name">Santería Arkangel</h1>
+  </a>
+</header>
+
+<nav class="site-nav">
+  <a href="index.html">Inicio</a>
+  <a href="historia.html">Empresa</a>
+  <a href="index.html#product-grid">Productos</a>
+  <a href="distribuidores.html">Distribuidores</a>
+  <a href="index.html?view=novedades">Novedades</a>
+  <a href="index.html?view=ofertas">Ofertas</a>
+  <a href="contacto.html">Contacto</a>
+  <a href="etica.html" class="active">Código de ética</a>
+</nav>
+
+<div class="page-wrap">
+  <a href="index.html" class="back-link">← Volver a la tienda</a>
+  <h2 class="display">Código de ética</h2>
+  <p id="page-text">Cargando…</p>
+</div>
+
+<footer class="site-footer">
+  © <span id="footer-year"></span> <span id="footer-name">Santería Arkangel</span> — hecho con cuidado, altar a altar.
+</footer>
+
+<script>
+  document.getElementById("footer-year").textContent = new Date().getFullYear();
+  fetch("api/settings.php", { credentials: "include" })
+    .then(r => r.json())
+    .then(s => {
+      document.getElementById("brand-name").textContent = s.store_name || "Santería Arkangel";
+      document.getElementById("footer-name").textContent = s.store_name || "Santería Arkangel";
+      if (s.store_logo) document.getElementById("brand-logo").src = s.store_logo;
+      document.getElementById("page-text").textContent = s.etica_text || "";
+    });
+</script>
+</body>
+</html>

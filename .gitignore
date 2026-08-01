@@ -1,0 +1,10 @@
+# Contenido subido por el administrador (fotos, PDFs) — no es código
+uploads/products/
+uploads/options/
+uploads/brand/
+uploads/about/
+!uploads/.htaccess
+
+# Sistema operativo / editor
+.DS_Store
+Thumbs.db

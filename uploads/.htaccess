@@ -1,0 +1,5 @@
+# Por seguridad: esta carpeta solo debe servir archivos (imágenes/PDF), nunca ejecutar código.
+<FilesMatch "\.(php|phtml|php\d)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes

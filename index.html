@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Santería Arkangel</title>
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand">
+    <img id="brand-logo" src="assets/img/logo-arkangel.png" alt="Logo">
+    <h1 class="display" id="brand-name">Santería Arkangel</h1>
+  </div>
+  <div class="header-actions">
+    <button class="btn-ghost" id="btn-account">Mi cuenta</button>
+    <button class="btn-cart" id="btn-cart">
+      🛒 <span id="cart-total">$0</span>
+      <span class="cart-badge hidden" id="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<nav class="site-nav">
+  <a href="index.html" class="active">Inicio</a>
+  <a href="historia.html">Empresa</a>
+  <a href="#product-grid" id="nav-productos">Productos</a>
+  <a href="distribuidores.html">Distribuidores</a>
+  <a href="index.html?view=novedades">Novedades</a>
+  <a href="index.html?view=ofertas">Ofertas</a>
+  <a href="contacto.html">Contacto</a>
+  <a href="etica.html">Código de ética</a>
+</nav>
+
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-categories" id="hero-categories"></div>
+    <div class="hero-cat-mobile">
+      <button class="hero-cat-toggle" id="hero-cat-toggle">☰ Categorías</button>
+      <div class="hero-cat-dropdown" id="hero-cat-dropdown"></div>
+    </div>
+    <h2 class="display">Todo lo que tu altar necesita, con la cantidad justa.</h2>
+    <p class="sub">Elegí tu producto, la variedad que necesitás y la cantidad — el precio se ajusta solo.</p>
+  </div>
+</section>
+
+<section class="filters">
+  <div class="search-box">
+    🔎 <input type="text" id="search-input" placeholder="Buscar producto…">
+  </div>
+  <div class="category-scroll" id="category-scroll"></div>
+  <select class="page-size-select" id="page-size-select">
+    <option value="6">Mostrar 6</option>
+    <option value="12" selected>Mostrar 12</option>
+    <option value="24">Mostrar 24</option>
+    <option value="50">Mostrar 50</option>
+    <option value="all">Mostrar todos</option>
+  </select>
+</section>
+
+<div id="view-filter-banner" class="hidden" style="padding: 0 16px 12px; display:flex; align-items:center; gap:10px;"></div>
+<section class="grid" id="product-grid"></section>
+
+<section class="about" id="about-section">
+  <div class="about-inner">
+    <h3 class="display">Nuestra historia</h3>
+    <p id="about-summary">Fabricantes e importadores de velas, sahumerios y productos religiosos y esotéricos.</p>
+    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:14px;">
+      <a href="historia.html" class="catalog-link">Ver más →</a>
+      <a href="#" id="catalog-link" class="catalog-link hidden" style="background:var(--deep);">📄 Descargar catálogo</a>
+    </div>
+  </div>
+</section>
+
+<a class="wa-float hidden" id="wa-float" target="_blank" rel="noreferrer" title="Escribinos por WhatsApp">💬</a>
+<button class="admin-float" id="btn-admin" title="Administrar">⚙️</button>
+
+<footer class="site-footer">
+  © <span id="footer-year"></span> <span id="footer-name">Santería Arkangel</span> — hecho con cuidado, altar a altar.
+</footer>
+
+<!-- Modal: detalle de producto -->
+<div class="overlay hidden" id="modal-product">
+  <div class="modal">
+    <button class="close-btn" data-close="modal-product">✕</button>
+    <div class="content" id="product-detail-content"></div>
+  </div>
+</div>
+
+<!-- Drawer: carrito -->
+<div class="drawer-overlay hidden" id="drawer-cart">
+  <div class="drawer">
+    <div class="drawer-header">
+      <h3 class="display">Tu carrito</h3>
+      <button class="close-btn" data-close="drawer-cart">✕</button>
+    </div>
+    <div class="drawer-body" id="cart-items"></div>
+    <div class="drawer-footer" id="cart-footer"></div>
+  </div>
+</div>
+
+<!-- Modal: checkout -->
+<div class="overlay hidden" id="modal-checkout">
+  <div class="modal">
+    <button class="close-btn" data-close="modal-checkout">✕</button>
+    <div class="content" id="checkout-content"></div>
+  </div>
+</div>
+
+<!-- Modal: cuenta (login/registro/perfil/pedidos) -->
+<div class="overlay hidden" id="modal-account">
+  <div class="modal">
+    <button class="close-btn" data-close="modal-account">✕</button>
+    <div class="content" id="account-content"></div>
+  </div>
+</div>
+
+<!-- Modal: administrador -->
+<div class="overlay hidden" id="modal-admin">
+  <div class="modal" style="max-width: 640px;">
+    <button class="close-btn" data-close="modal-admin">✕</button>
+    <div class="content" id="admin-content"></div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script src="assets/js/app.js"></script>
+</body>
+</html>
