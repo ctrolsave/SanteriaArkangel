@@ -108,7 +108,40 @@
 </div>
 
 <footer class="site-footer">
-  © <span id="footer-year"></span> <span id="footer-name">Santería Arkangel</span> — hecho con cuidado, altar a altar.
+  <div class="footer-inner">
+    <div class="footer-col footer-brand">
+      <img id="footer-logo" src="assets/img/logo-arkangel.png" alt="Logo">
+      <h3 class="display" id="footer-brand-name">Santería Arkangel</h3>
+      <p>Más de 36 años fabricando e importando velas, sahumerios y productos religiosos y esotéricos.</p>
+      <div class="footer-social">
+        <a href="https://instagram.com/santeria_arkangel" target="_blank" rel="noreferrer" aria-label="Instagram">📷</a>
+        <a href="https://facebook.com/santeriaarkangel" target="_blank" rel="noreferrer" aria-label="Facebook">📘</a>
+      </div>
+    </div>
+    <div class="footer-col">
+      <h4>Navegación</h4>
+      <a href="index.html">Inicio</a>
+      <a href="historia.html">Empresa</a>
+      <a href="index.html#product-grid">Productos</a>
+      <a href="distribuidores.html">Distribuidores</a>
+      <a href="contacto.html">Contacto</a>
+      <a href="etica.html">Código de ética</a>
+    </div>
+    <div class="footer-col">
+      <h4>Contacto</h4>
+      <a href="https://maps.app.goo.gl/acjHGiJugxUaM7Ff8" target="_blank" rel="noreferrer">📍 San Juan 1368, Mendoza</a>
+      <a href="https://wa.me/2613030908" target="_blank" rel="noreferrer">💬 261 3030908 · Minorista</a>
+      <a href="https://wa.me/2613030910" target="_blank" rel="noreferrer">💬 261 3030910 · Mayorista</a>
+    </div>
+    <div class="footer-col">
+      <h4>Horario</h4>
+      <p>Lunes a Viernes<br>8:30 a 13:00 hs / 16:00 a 20:00 hs</p>
+      <p>Sábados<br>10:00 a 15:00 hs</p>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    © <span id="footer-year"></span> <span id="footer-name">Santería Arkangel</span> — hecho con cuidado, altar a altar.
+  </div>
 </footer>
 
 <script>
@@ -118,7 +151,11 @@
     .then(s => {
       document.getElementById("brand-name").textContent = s.store_name || "Santería Arkangel";
       document.getElementById("footer-name").textContent = s.store_name || "Santería Arkangel";
-      if (s.store_logo) document.getElementById("brand-logo").src = s.store_logo;
+      document.getElementById("footer-brand-name").textContent = s.store_name || "Santería Arkangel";
+      if (s.store_logo) {
+        document.getElementById("brand-logo").src = s.store_logo;
+        document.getElementById("footer-logo").src = s.store_logo;
+      }
     });
 </script>
 </body>

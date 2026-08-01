@@ -164,8 +164,12 @@ async function loadSettings() {
   const s = STATE.settings;
   document.getElementById("brand-name").textContent = s.store_name || "Santería Arkangel";
   document.getElementById("footer-name").textContent = s.store_name || "Santería Arkangel";
+  document.getElementById("footer-brand-name").textContent = s.store_name || "Santería Arkangel";
   document.getElementById("footer-year").textContent = new Date().getFullYear();
-  if (s.store_logo) document.getElementById("brand-logo").src = s.store_logo;
+  if (s.store_logo) {
+    document.getElementById("brand-logo").src = s.store_logo;
+    document.getElementById("footer-logo").src = s.store_logo;
+  }
   document.getElementById("about-summary").textContent = s.about_summary || "";
 
   const hero = document.getElementById("hero");
