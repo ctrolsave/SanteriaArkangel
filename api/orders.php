@@ -22,6 +22,7 @@ function order_with_items($conn, $orderRow) {
         'id' => (int) $orderRow['id'],
         'status' => $orderRow['status'],
         'paymentMethod' => $orderRow['payment_method'],
+        'deliveryMethod' => $orderRow['delivery_method'] ?? 'envio',
         'total' => (float) $orderRow['total'],
         'createdAt' => $orderRow['created_at'],
         'trackingCode' => $orderRow['tracking_code'] ?? '',
@@ -84,6 +85,7 @@ if ($method === 'POST') {
     $customerId = require_customer();
     $items = $data['items'] ?? [];
     $paymentMethod = trim($data['paymentMethod'] ?? 'transferencia');
+    $deliveryMethod = in_array($data['deliveryMethod'] ?? '', ['envio', 'retiro'], true) ? $data['deliveryMethod'] : 'envio';
 
     if (empty($items)) {
         respond(['error' => 'El carrito está vacío.'], 400);
@@ -155,8 +157,8 @@ if ($method === 'POST') {
     $cust->execute();
     $shipping = json_encode($cust->get_result()->fetch_assoc());
 
-    $stmt = $conn->prepare('INSERT INTO orders (customer_id, status, payment_method, total, shipping_snapshot) VALUES (?, "Pendiente", ?, ?, ?)');
-    $stmt->bind_param('isds', $customerId, $paymentMethod, $total, $shipping);
+    $stmt = $conn->prepare('INSERT INTO orders (customer_id, status, payment_method, delivery_method, total, shipping_snapshot) VALUES (?, "Pendiente", ?, ?, ?, ?)');
+    $stmt->bind_param('issds', $customerId, $paymentMethod, $deliveryMethod, $total, $shipping);
     $stmt->execute();
     $orderId = $conn->insert_id;
 
@@ -172,7 +174,7 @@ if ($method === 'POST') {
         return '- ' . $it['qty'] . 'x ' . $it['name'] . ($it['label'] ? " ({$it['label']})" : '');
     }, $resolved));
     $custRow = $conn->query('SELECT name FROM customers WHERE id = ' . (int) $customerId)->fetch_assoc();
-    notify_new_order($conn, $orderId, $custRow['name'] ?? '', $total, $itemsSummary);
+    notify_new_order($conn, $orderId, $custRow['name'] ?? '', $total, $itemsSummary, $deliveryMethod);
 
     respond(['ok' => true, 'orderId' => $orderId]);
 }

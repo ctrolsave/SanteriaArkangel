@@ -2,15 +2,19 @@
 require __DIR__ . '/config.php';
 require __DIR__ . '/helpers.php';
 
-$method = $_SERVER['REQUEST_METHOD'];
-
-if ($method === 'GET') {
+function list_categories($conn) {
     $names = [];
     $res = $conn->query('SELECT name FROM categories ORDER BY name ASC');
     while ($row = $res->fetch_assoc()) {
         $names[] = $row['name'];
     }
-    respond($names);
+    return $names;
+}
+
+$method = $_SERVER['REQUEST_METHOD'];
+
+if ($method === 'GET') {
+    respond(list_categories($conn));
 }
 
 if ($method === 'POST') {
@@ -42,12 +46,7 @@ if ($method === 'POST') {
         $stmt->execute();
     }
 
-    $names = [];
-    $res = $conn->query('SELECT name FROM categories ORDER BY name ASC');
-    while ($row = $res->fetch_assoc()) {
-        $names[] = $row['name'];
-    }
-    respond($names);
+    respond(list_categories($conn));
 }
 
 respond(['error' => 'Método no permitido'], 405);

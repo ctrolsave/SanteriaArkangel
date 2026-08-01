@@ -162,17 +162,19 @@ function options_label($product, $selection) {
  * (si configuró esos datos en Administrar > Configuración). Si algo falla,
  * no interrumpe la creación del pedido — solo no llega el aviso.
  */
-function notify_new_order($conn, $orderId, $customerName, $total, $itemsSummary) {
+function notify_new_order($conn, $orderId, $customerName, $total, $itemsSummary, $deliveryMethod = 'envio') {
     $row = $conn->query('SELECT store_name, notify_email, notify_whatsapp_number, notify_whatsapp_apikey FROM settings WHERE id = 1')->fetch_assoc();
     if (!$row) return;
 
     $storeName = $row['store_name'] ?: 'tu tienda';
     $totalFmt = number_format((float) $total, 0, ',', '.');
+    $deliveryLabel = $deliveryMethod === 'retiro' ? 'Retiro en el local' : 'Envío a domicilio';
 
     if (!empty($row['notify_email'])) {
         $subject = "Nuevo pedido #$orderId en $storeName";
         $body = "Nuevo pedido #$orderId\n"
               . "Cliente: $customerName\n"
+              . "Entrega: $deliveryLabel\n"
               . "Total: \$$totalFmt\n\n"
               . "Productos:\n$itemsSummary\n\n"
               . "Entrá a Administrar > Pedidos para ver el detalle completo.";
@@ -181,7 +183,7 @@ function notify_new_order($conn, $orderId, $customerName, $total, $itemsSummary)
     }
 
     if (!empty($row['notify_whatsapp_number']) && !empty($row['notify_whatsapp_apikey'])) {
-        $text = "🔔 Nuevo pedido #$orderId en $storeName\nCliente: $customerName\nTotal: \$$totalFmt";
+        $text = "🔔 Nuevo pedido #$orderId en $storeName\nCliente: $customerName\nEntrega: $deliveryLabel\nTotal: \$$totalFmt";
         $url = "https://api.callmebot.com/whatsapp.php?phone=" . urlencode($row['notify_whatsapp_number'])
              . "&text=" . urlencode($text) . "&apikey=" . urlencode($row['notify_whatsapp_apikey']);
         $ctx = stream_context_create(['http' => ['timeout' => 4]]);

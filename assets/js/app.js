@@ -12,6 +12,7 @@ let STATE = {
   activeCategory: "Todas",
   query: "",
   pageSize: 12,
+  visibleCount: 12, // cuántos se muestran ahora; crece con "Ver más"
   viewFilter: null, // "novedades" | "ofertas" | null
   cart: [],
   customer: null, // { name, email, phone, address, city, province, postal_code } o null
@@ -50,6 +51,19 @@ function showToast(msg) {
 
 function fmt(n) {
   return "$" + Number(n || 0).toLocaleString("es-AR");
+}
+
+// El "YYYY-MM-DD HH:MM:SS" que manda PHP no es válido para el constructor Date
+// de Safari/iOS sin cambiar el espacio por una "T" (formato ISO).
+function parseServerDate(str) {
+  return new Date(str.replace(" ", "T"));
+}
+
+function bankInfoHtml(s) {
+  return `
+    <p>Titular: ${escapeHtml(s.titular || "— a configurar —")}</p>
+    <p>Alias: ${escapeHtml(s.alias || "— a configurar —")}</p>
+    <p>CBU: ${escapeHtml(s.cbu || "— a configurar —")}</p>`;
 }
 
 function priceForQty(tiers, qty) {
@@ -91,6 +105,24 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Campo de contraseña con botón de ver/ocultar. attrs va tal cual dentro del <input>.
+function pwFieldHtml(id, attrs = "") {
+  return `<div class="pw-wrap">
+    <input type="password" id="${id}" ${attrs}>
+    <button type="button" class="pw-toggle" data-target="${id}" title="Mostrar contraseña">👁</button>
+  </div>`;
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".pw-toggle");
+  if (!btn) return;
+  const input = document.getElementById(btn.dataset.target);
+  if (!input) return;
+  const showing = input.type === "text";
+  input.type = showing ? "password" : "text";
+  btn.textContent = showing ? "👁" : "🙈";
+  btn.title = showing ? "Mostrar contraseña" : "Ocultar contraseña";
+});
+
 /* ---------------- Carrito (localStorage) ---------------- */
 function loadCart() {
   try { STATE.cart = JSON.parse(localStorage.getItem("arkangel_cart") || "[]"); } catch (e) { STATE.cart = []; }
@@ -115,6 +147,10 @@ function close(id) { document.getElementById(id).classList.add("hidden"); }
 document.addEventListener("click", (e) => {
   if (e.target.dataset.close) close(e.target.dataset.close);
   if (e.target.classList.contains("overlay") || e.target.classList.contains("drawer-overlay")) {
+    // El panel de administrador no se cierra solo al tocar afuera: tiene
+    // formularios largos y un click afuera sin querer borraba la edición.
+    // Se cierra únicamente con el botón ✕.
+    if (e.target.id === "modal-admin") return;
     e.target.classList.add("hidden");
   }
 });
@@ -178,6 +214,7 @@ function renderHeroCategories() {
 
   function goToCategory(cat) {
     STATE.activeCategory = cat;
+    STATE.visibleCount = STATE.pageSize;
     renderCategories();
     renderGrid();
     dropdownWrap.classList.remove("open");
@@ -198,8 +235,7 @@ function renderHeroCategories() {
 
 function isNewProduct(createdAt) {
   if (!createdAt) return false;
-  const created = new Date(createdAt.replace(" ", "T"));
-  const days = (Date.now() - created.getTime()) / (1000 * 60 * 60 * 24);
+  const days = (Date.now() - parseServerDate(createdAt).getTime()) / (1000 * 60 * 60 * 24);
   return days <= 30;
 }
 
@@ -215,6 +251,7 @@ function renderCategories() {
   wrap.querySelectorAll(".chip").forEach(btn => {
     btn.addEventListener("click", () => {
       STATE.activeCategory = btn.dataset.cat;
+      STATE.visibleCount = STATE.pageSize;
       renderCategories();
       renderGrid();
     });
@@ -223,11 +260,13 @@ function renderCategories() {
 
 document.getElementById("search-input").addEventListener("input", (e) => {
   STATE.query = e.target.value;
+  STATE.visibleCount = STATE.pageSize;
   renderGrid();
 });
 
 document.getElementById("page-size-select").addEventListener("change", (e) => {
   STATE.pageSize = e.target.value === "all" ? Infinity : Number(e.target.value);
+  STATE.visibleCount = STATE.pageSize;
   renderGrid();
 });
 
@@ -246,7 +285,7 @@ function renderGrid() {
     return;
   }
 
-  const shown = filtered.slice(0, STATE.pageSize);
+  const shown = filtered.slice(0, STATE.visibleCount);
 
   grid.innerHTML = shown.map(p => {
     const minPrice = priceForQty(effectiveTiers(p, p.tiers), 1);
@@ -271,7 +310,15 @@ function renderGrid() {
   }).join("");
 
   if (filtered.length > shown.length) {
-    grid.insertAdjacentHTML("beforeend", `<p class="load-more-wrap" style="color:var(--muted); font-size:0.8rem;">Mostrando ${shown.length} de ${filtered.length} productos — elegí "Mostrar todos" para verlos todos.</p>`);
+    grid.insertAdjacentHTML("beforeend", `
+      <div class="load-more-wrap">
+        <button class="btn-secondary" id="load-more-btn">Ver más (${shown.length} de ${filtered.length})</button>
+      </div>`);
+    document.getElementById("load-more-btn").addEventListener("click", () => {
+      const step = STATE.pageSize === Infinity ? filtered.length : STATE.pageSize;
+      STATE.visibleCount += step;
+      renderGrid();
+    });
   }
 
   grid.querySelectorAll(".card").forEach(card => {
@@ -479,9 +526,11 @@ function changeLineQty(lineId, delta) {
    Checkout
 ============================================================ */
 let CHECKOUT_PAY_METHOD = "transferencia";
+let CHECKOUT_DELIVERY_METHOD = "envio";
 
 function openCheckout() {
   CHECKOUT_PAY_METHOD = "transferencia";
+  CHECKOUT_DELIVERY_METHOD = "envio";
   renderCheckout();
   open("modal-checkout");
 }
@@ -503,15 +552,26 @@ function renderCheckout() {
     return;
   }
 
+  const deliveryInfoHtml = CHECKOUT_DELIVERY_METHOD === "retiro"
+    ? `<p style="font-size:0.85rem; color: var(--muted);">Vas a retirar en:</p>
+       <p style="font-size:0.9rem; margin-top:2px;">${escapeHtml(s.contact_address || "— dirección del local a configurar —")}</p>
+       <p style="font-size:0.8rem; color:var(--muted); margin-bottom:14px;">${s.contact_hours ? "Horario: " + escapeHtml(s.contact_hours) : ""}</p>`
+    : `<p style="font-size:0.85rem; color: var(--muted);">Se va a enviar a:</p>
+       <p style="font-size:0.9rem; margin-top:2px;">${escapeHtml(STATE.customer.name)} — ${escapeHtml(STATE.customer.address || "sin dirección cargada")}, ${escapeHtml(STATE.customer.city || "")}</p>
+       <p style="font-size:0.8rem; color:var(--muted); margin-bottom:14px;"><a href="#" id="edit-shipping-link" style="color:var(--accent);">Editar datos de envío</a></p>`;
+
   document.getElementById("checkout-content").innerHTML = `
     <h3 class="display" style="font-size:1.5rem; margin-bottom:12px;">Finalizar pedido</h3>
 
     <label class="field-label" style="display:block; margin-bottom:8px;">Tu pedido</label>
     <div id="checkout-items" style="margin-bottom:16px;"></div>
 
-    <p style="font-size:0.85rem; color: var(--muted);">Se va a enviar a:</p>
-    <p style="font-size:0.9rem; margin-top:2px;">${escapeHtml(STATE.customer.name)} — ${escapeHtml(STATE.customer.address || "sin dirección cargada")}, ${escapeHtml(STATE.customer.city || "")}</p>
-    <p style="font-size:0.8rem; color:var(--muted); margin-bottom:14px;"><a href="#" id="edit-shipping-link" style="color:var(--accent);">Editar datos de envío</a></p>
+    <label class="field-label">Entrega</label>
+    <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <button class="chip delivery-opt ${CHECKOUT_DELIVERY_METHOD === "envio" ? "active" : ""}" data-delivery="envio" style="flex:1;">🚚 Envío a domicilio</button>
+      <button class="chip delivery-opt ${CHECKOUT_DELIVERY_METHOD === "retiro" ? "active" : ""}" data-delivery="retiro" style="flex:1;">🏬 Retiro en el local</button>
+    </div>
+    ${deliveryInfoHtml}
 
     <label class="field-label">Método de pago</label>
     <div style="display:flex; gap:8px; margin-bottom:14px;">
@@ -573,10 +633,13 @@ function renderCheckout() {
   renderCheckoutItems();
   renderPayDetails();
 
+  document.querySelectorAll(".delivery-opt").forEach(btn => {
+    btn.addEventListener("click", () => { CHECKOUT_DELIVERY_METHOD = btn.dataset.delivery; renderCheckout(); });
+  });
   document.querySelectorAll(".pay-opt").forEach(btn => {
     btn.addEventListener("click", () => { CHECKOUT_PAY_METHOD = btn.dataset.pay; renderCheckout(); });
   });
-  document.getElementById("edit-shipping-link").addEventListener("click", (e) => {
+  document.getElementById("edit-shipping-link")?.addEventListener("click", (e) => {
     e.preventDefault(); close("modal-checkout"); openAccount("profile");
   });
   document.getElementById("confirm-order-btn").addEventListener("click", submitOrder);
@@ -584,10 +647,7 @@ function renderCheckout() {
   function renderPayDetails() {
     const box = document.getElementById("pay-details");
     if (CHECKOUT_PAY_METHOD === "transferencia") {
-      box.innerHTML = `
-        <p>Titular: ${escapeHtml(s.titular || "— a configurar —")}</p>
-        <p>Alias: ${escapeHtml(s.alias || "— a configurar —")}</p>
-        <p>CBU: ${escapeHtml(s.cbu || "— a configurar —")}</p>`;
+      box.innerHTML = bankInfoHtml(s);
     } else {
       box.innerHTML = s.mp_link
         ? `<a href="${s.mp_link}" target="_blank" rel="noreferrer" style="color:var(--accent);">Abrir link de pago de Mercado Pago →</a>`
@@ -601,7 +661,7 @@ async function submitOrder() {
   try {
     const result = await api("orders.php", {
       method: "POST",
-      json: { action: "create", items: STATE.cart, paymentMethod: CHECKOUT_PAY_METHOD },
+      json: { action: "create", items: STATE.cart, paymentMethod: CHECKOUT_PAY_METHOD, deliveryMethod: CHECKOUT_DELIVERY_METHOD },
     });
     STATE.cart = [];
     saveCart();
@@ -609,10 +669,10 @@ async function submitOrder() {
     showToast(`¡Pedido #${result.orderId} creado! Podés verlo en Mi cuenta > Mis pedidos.`);
 
     if (STATE.settings.whatsapp) {
-      const lines = [];
       const text = [
         `Hola! Acabo de hacer el pedido #${result.orderId} en ${STATE.settings.store_name || "la tienda"}.`,
         `Total: ${fmt(total)}`,
+        `Entrega: ${CHECKOUT_DELIVERY_METHOD === "retiro" ? "Retiro en el local" : "Envío a domicilio"}`,
         `Método de pago: ${CHECKOUT_PAY_METHOD === "transferencia" ? "Transferencia bancaria" : "Mercado Pago"}`,
       ].join("\n");
       window.open(`https://wa.me/${STATE.settings.whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`, "_blank");
@@ -659,7 +719,7 @@ function renderAccount(tab) {
         <div class="field"><label class="field-label">Nombre y apellido</label><input type="text" id="reg-name"></div>
         <div class="field"><label class="field-label">Email</label><input type="email" id="reg-email"></div>
         <div class="field"><label class="field-label">Teléfono</label><input type="tel" id="reg-phone"></div>
-        <div class="field"><label class="field-label">Contraseña</label><input type="password" id="reg-pass" minlength="8" placeholder="Mínimo 8 caracteres"></div>
+        <div class="field"><label class="field-label">Contraseña</label>${pwFieldHtml("reg-pass", 'minlength="8" placeholder="Mínimo 8 caracteres"')}</div>
         <p class="error-text hidden" id="reg-error"></p>
         <button class="btn-primary" id="reg-submit">Crear cuenta</button>
       `;
@@ -681,7 +741,7 @@ function renderAccount(tab) {
     } else {
       body.innerHTML = `
         <div class="field"><label class="field-label">Email</label><input type="email" id="login-email"></div>
-        <div class="field"><label class="field-label">Contraseña</label><input type="password" id="login-pass"></div>
+        <div class="field"><label class="field-label">Contraseña</label>${pwFieldHtml("login-pass")}</div>
         <p class="error-text hidden" id="login-error"></p>
         <button class="btn-primary" id="login-submit">Entrar</button>
       `;
@@ -736,12 +796,7 @@ function renderAccount(tab) {
         if (o.status === "Pendiente") {
           extra += `<div style="margin-top:8px; padding:8px; border-radius:8px; background:#fff4e0; color:#8a5a00; font-size:0.8rem; font-weight:600;">⏳ Pendiente de confirmación de pago</div>`;
           if (o.paymentMethod !== "mercadopago") {
-            extra += `
-              <div style="margin-top:6px; padding:8px; border-radius:8px; background:var(--bg-alt); font-size:0.8rem;">
-                <p>Titular: ${escapeHtml(s.titular || "— a configurar —")}</p>
-                <p>Alias: ${escapeHtml(s.alias || "— a configurar —")}</p>
-                <p>CBU: ${escapeHtml(s.cbu || "— a configurar —")}</p>
-              </div>`;
+            extra += `<div style="margin-top:6px; padding:8px; border-radius:8px; background:var(--bg-alt); font-size:0.8rem;">${bankInfoHtml(s)}</div>`;
           }
         }
         if (inProcess.includes(o.status)) {
@@ -760,9 +815,10 @@ function renderAccount(tab) {
         return `
         <div class="order-card">
           <span class="status">${escapeHtml(o.status)}</span>
-          <p style="margin:4px 0;">Pedido #${o.id} — ${new Date(o.createdAt.replace(" ", "T")).toLocaleDateString("es-AR")}</p>
+          <p style="margin:4px 0;">Pedido #${o.id} — ${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</p>
           ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
           <p style="margin-top:6px; font-weight:600;">Total: ${fmt(o.total)}</p>
+          <p style="font-size:0.78rem; color:var(--muted);">Entrega: ${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
           <p style="font-size:0.78rem; color:var(--muted);">Método de pago: ${methodLabel}</p>
           ${extra}
         </div>
@@ -820,7 +876,7 @@ function renderAdmin(tab) {
     el.innerHTML = `
       <h3 class="display" style="font-size:1.4rem;">Administrar</h3>
       <div class="field"><label class="field-label">Usuario</label><input type="text" id="adm-user"></div>
-      <div class="field"><label class="field-label">Contraseña</label><input type="password" id="adm-pass"></div>
+      <div class="field"><label class="field-label">Contraseña</label>${pwFieldHtml("adm-pass")}</div>
       <p class="error-text hidden" id="adm-error"></p>
       <button class="btn-primary" id="adm-login-btn">Entrar</button>
     `;
@@ -1220,16 +1276,18 @@ async function renderAdminOrders() {
   body.innerHTML = orders.map(o => `
     <div class="order-card">
       <p style="margin:0 0 4px;">Pedido #${o.id} — ${escapeHtml(o.customerName)} (${escapeHtml(o.customerEmail)})</p>
-      <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${new Date(o.createdAt.replace(" ", "T")).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
+      <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${parseServerDate(o.createdAt).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
+      <p style="margin:0 0 6px; font-size:0.8rem; font-weight:600;">${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
       ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
       <p style="font-weight:600; margin:6px 0;">Total: ${fmt(o.total)}</p>
       <select class="status-select" data-id="${o.id}" style="margin-bottom:8px;">
         ${ORDER_STATUSES.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
       </select>
+      ${o.deliveryMethod === "retiro" ? "" : `
       <div class="tracking-fields" data-id="${o.id}" style="display:flex; gap:6px; margin-bottom:6px;">
         <input type="text" class="tracking-code-input" data-id="${o.id}" placeholder="Código de seguimiento" value="${escapeHtml(o.trackingCode || "")}" style="flex:1;">
         <input type="text" class="carrier-input" data-id="${o.id}" placeholder="Empresa de envío o link" value="${escapeHtml(o.carrier || "")}" style="flex:1;">
-      </div>
+      </div>`}
       <button class="btn-secondary save-order-btn" data-id="${o.id}">Guardar cambios</button>
       <button class="btn-secondary print-order-btn" data-id="${o.id}">🖨️ Imprimir ticket</button>
     </div>
@@ -1238,8 +1296,8 @@ async function renderAdminOrders() {
   body.querySelectorAll(".save-order-btn").forEach(btn => btn.addEventListener("click", async () => {
     const id = Number(btn.dataset.id);
     const status = document.querySelector(`.status-select[data-id="${id}"]`).value;
-    const trackingCode = document.querySelector(`.tracking-code-input[data-id="${id}"]`).value;
-    const carrier = document.querySelector(`.carrier-input[data-id="${id}"]`).value;
+    const trackingCode = document.querySelector(`.tracking-code-input[data-id="${id}"]`)?.value || "";
+    const carrier = document.querySelector(`.carrier-input[data-id="${id}"]`)?.value || "";
     try {
       await api("orders.php", { method: "POST", json: { action: "update_status", id, status, trackingCode, carrier } });
       showToast("Pedido actualizado.");
@@ -1254,10 +1312,7 @@ async function renderAdminOrders() {
 
 function printOrderTicket(o) {
   const sh = o.shipping || {};
-  const win = window.open("", "_blank", "width=420,height=640");
-  if (!win) { showToast("El navegador bloqueó la ventana de impresión. Permití pop-ups para este sitio."); return; }
-
-  win.document.write(`
+  const html = `
     <!DOCTYPE html>
     <html lang="es"><head><meta charset="UTF-8"><title>Pedido #${o.id}</title>
     <style>
@@ -1271,13 +1326,14 @@ function printOrderTicket(o) {
     </style></head>
     <body>
       <h1>Pedido #${o.id}</h1>
-      <p class="muted">${new Date(o.createdAt.replace(" ", "T")).toLocaleString("es-AR")}</p>
+      <p class="muted">${parseServerDate(o.createdAt).toLocaleString("es-AR")}</p>
+      <p style="font-weight:bold; margin:4px 0;">${o.deliveryMethod === "retiro" ? "🏬 RETIRA EN EL LOCAL" : "🚚 ENVÍO A DOMICILIO"}</p>
       <hr>
       <strong>Cliente</strong>
       <p style="margin:4px 0;">
         ${escapeHtml(sh.name || o.customerName || "")}<br>
-        ${escapeHtml(sh.phone || "")}<br>
-        ${escapeHtml(sh.address || "")}${sh.city ? ", " + escapeHtml(sh.city) : ""}${sh.province ? ", " + escapeHtml(sh.province) : ""}${sh.postal_code ? " (CP " + escapeHtml(sh.postal_code) + ")" : ""}
+        ${escapeHtml(sh.phone || "")}${o.deliveryMethod === "retiro" ? "" : `<br>
+        ${escapeHtml(sh.address || "")}${sh.city ? ", " + escapeHtml(sh.city) : ""}${sh.province ? ", " + escapeHtml(sh.province) : ""}${sh.postal_code ? " (CP " + escapeHtml(sh.postal_code) + ")" : ""}`}
       </p>
       <hr>
       <strong>Productos</strong>
@@ -1287,10 +1343,30 @@ function printOrderTicket(o) {
       <p class="total">Total: ${fmt(o.total)}</p>
       <p class="muted">Pago: ${o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia"}</p>
     </body></html>
-  `);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 300);
+  `;
+
+  // Se usa un iframe oculto en vez de una ventana emergente: así no depende
+  // del bloqueador de pop-ups, y el diálogo de impresión del navegador deja
+  // elegir "Guardar como PDF" como destino para generar el archivo.
+  const iframe = document.createElement("iframe");
+  iframe.style.cssText = "position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;";
+  document.body.appendChild(iframe);
+
+  let printed = false;
+  const doPrint = () => {
+    if (printed) return;
+    printed = true;
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => iframe.remove(), 1000);
+  };
+
+  iframe.onload = doPrint;
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+  setTimeout(doPrint, 400); // respaldo si el navegador no dispara "load" con document.write
 }
 
 /* ---- Admin: configuración ---- */
@@ -1339,7 +1415,7 @@ function renderAdminSettings() {
       <input type="text" id="s-notify-email" value="${escapeHtml(s.notify_email || "")}" placeholder="tu@email.com">
     </div>
     <div class="field">
-      <label class="field-label">Tu WhatsApp (con código de país, ej: 5491122334455)</label>
+      <label class="field-label">Tu WhatsApp personal, para recibir el aviso (con código de país, ej: 5491122334455)</label>
       <input type="text" id="s-notify-wa" value="${escapeHtml(s.notify_whatsapp_number || "")}">
     </div>
     <div class="field">
@@ -1357,13 +1433,13 @@ function renderAdminSettings() {
     <div id="gallery-list" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;"></div>
     <button class="btn-secondary" id="gallery-add-btn" style="margin-bottom:16px;">📷 Agregar foto</button>
     <input type="file" accept="image/*" id="gallery-input" class="hidden">
-    <div class="field"><label class="field-label">WhatsApp (con código de país, ej: 5491122334455)</label><input type="text" id="s-wa" value="${escapeHtml(s.whatsapp || "")}"></div>
+    <div class="field"><label class="field-label">WhatsApp del local, el que ven tus clientes (con código de país, ej: 5491122334455)</label><input type="text" id="s-wa" value="${escapeHtml(s.whatsapp || "")}"></div>
     <div class="field"><label class="field-label">Titular de la cuenta</label><input type="text" id="s-titular" value="${escapeHtml(s.titular || "")}"></div>
     <div class="field"><label class="field-label">Alias bancario</label><input type="text" id="s-alias" value="${escapeHtml(s.alias || "")}"></div>
     <div class="field"><label class="field-label">CBU</label><input type="text" id="s-cbu" value="${escapeHtml(s.cbu || "")}"></div>
     <div class="field"><label class="field-label">Link de pago de Mercado Pago</label><input type="text" id="s-mp" value="${escapeHtml(s.mp_link || "")}"></div>
     <div class="field"><label class="field-label">Usuario administrador</label><input type="text" id="s-user" value="${escapeHtml(s.admin_user || "")}"></div>
-    <div class="field"><label class="field-label">Nueva contraseña (dejar vacío para no cambiarla)</label><input type="password" id="s-pass"></div>
+    <div class="field"><label class="field-label">Nueva contraseña (dejar vacío para no cambiarla)</label>${pwFieldHtml("s-pass")}</div>
 
     <button class="btn-primary" id="s-save-btn">Guardar configuración</button>
   `;

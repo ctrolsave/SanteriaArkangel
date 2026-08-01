@@ -205,6 +205,13 @@ input[type=text], input[type=email], input[type=password], input[type=number], i
 }
 textarea { resize: vertical; }
 .field { margin-bottom: 12px; }
+.pw-wrap { position: relative; }
+.pw-wrap input[type=password], .pw-wrap input[type=text] { padding-right: 38px; }
+.pw-toggle {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; border: none; background: none; cursor: pointer;
+  font-size: 0.95rem; color: var(--muted); display: flex; align-items: center; justify-content: center;
+}
 .btn-primary {
   width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--deep); color: #fff; font-weight: 500; font-size: 0.95rem;
 }

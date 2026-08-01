@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_id INT NOT NULL,
   status VARCHAR(30) NOT NULL DEFAULT 'Pendiente',
   payment_method VARCHAR(30) NOT NULL DEFAULT 'transferencia',
+  delivery_method VARCHAR(20) NOT NULL DEFAULT 'envio',
   total DECIMAL(12,2) NOT NULL DEFAULT 0,
   shipping_snapshot TEXT,
   tracking_code VARCHAR(100) DEFAULT '',
