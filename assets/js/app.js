@@ -223,7 +223,7 @@ function renderHeroCategories() {
     renderCategories();
     renderGrid();
     dropdownWrap.classList.remove("open");
-    document.getElementById("product-grid").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("filters-bar").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   rowWrap.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => goToCategory(btn.dataset.cat)));
@@ -1625,6 +1625,6 @@ function renderAdminSettings() {
     const label = STATE.viewFilter === "novedades" ? "Novedades" : "Ofertas";
     banner.innerHTML = `<span class="chip active">Viendo: ${label}</span> <a href="index.html" style="font-size:0.8rem; color:var(--accent);">Ver todo el catálogo</a>`;
     banner.classList.remove("hidden");
-    document.getElementById("product-grid").scrollIntoView({ behavior: "smooth", block: "start" });
+    document.getElementById("filters-bar").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 })();
