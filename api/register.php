@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/config.php';
 require __DIR__ . '/helpers.php';
+require_csrf();
 
 $data = json_input();
 $name = trim($data['name'] ?? '');
@@ -8,8 +9,8 @@ $email = strtolower(trim($data['email'] ?? ''));
 $pass = (string) ($data['pass'] ?? '');
 $phone = trim($data['phone'] ?? '');
 
-if ($name === '' || $email === '' || strlen($pass) < 4) {
-    respond(['error' => 'Completá nombre, email y una contraseña de al menos 4 caracteres.'], 400);
+if ($name === '' || $email === '' || strlen($pass) < 8) {
+    respond(['error' => 'Completá nombre, email y una contraseña de al menos 8 caracteres.'], 400);
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     respond(['error' => 'El email no es válido.'], 400);

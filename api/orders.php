@@ -60,6 +60,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    require_csrf();
     $data = json_input();
     $action = $data['action'] ?? 'create';
 
@@ -88,9 +89,41 @@ if ($method === 'POST') {
         respond(['error' => 'El carrito está vacío.'], 400);
     }
 
-    $total = 0;
+    // El nombre, la variante y el precio de cada línea se recalculan acá a partir
+    // del catálogo real — nunca se confía en esos datos si vienen del cliente,
+    // para que no se pueda manipular el precio de un pedido desde el navegador.
+    $catalog = [];
+    foreach (fetch_all_products($conn) as $p) {
+        $catalog[$p['id']] = $p;
+    }
+
+    $resolved = [];
     foreach ($items as $it) {
-        $total += (float) ($it['unitPrice'] ?? 0) * (int) ($it['qty'] ?? 0);
+        $productId = (int) ($it['productId'] ?? 0);
+        $qty = (int) ($it['qty'] ?? 0);
+        if ($productId <= 0 || $qty <= 0 || !isset($catalog[$productId])) continue;
+
+        $product = $catalog[$productId];
+        $selection = is_array($it['selection'] ?? null) ? $it['selection'] : [];
+        $activeTiers = resolve_tiers_for_selection($product, $selection);
+        $unitPrice = price_for_qty(effective_tiers($product, $activeTiers), $qty);
+
+        $resolved[] = [
+            'productId' => $productId,
+            'qty' => $qty,
+            'name' => $product['name'],
+            'label' => options_label($product, $selection),
+            'unitPrice' => $unitPrice,
+        ];
+    }
+
+    if (empty($resolved)) {
+        respond(['error' => 'El carrito está vacío.'], 400);
+    }
+
+    $total = 0;
+    foreach ($resolved as $it) {
+        $total += $it['unitPrice'] * $it['qty'];
     }
 
     // Descontar stock de forma segura: se bloquean las filas involucradas y se
@@ -98,25 +131,18 @@ if ($method === 'POST') {
     // ni se crea el pedido (y nunca se le informa al cliente cuánto stock queda).
     $conn->begin_transaction();
     try {
-        foreach ($items as $it) {
-            $productId = (int) ($it['productId'] ?? 0);
-            $qty = (int) ($it['qty'] ?? 0);
-            if ($productId <= 0 || $qty <= 0) continue;
-
+        foreach ($resolved as $it) {
             $lock = $conn->prepare('SELECT stock FROM products WHERE id = ? FOR UPDATE');
-            $lock->bind_param('i', $productId);
+            $lock->bind_param('i', $it['productId']);
             $lock->execute();
             $row = $lock->get_result()->fetch_assoc();
-            if (!$row || (int) $row['stock'] < $qty) {
+            if (!$row || (int) $row['stock'] < $it['qty']) {
                 throw new Exception('stock');
             }
         }
-        foreach ($items as $it) {
-            $productId = (int) ($it['productId'] ?? 0);
-            $qty = (int) ($it['qty'] ?? 0);
-            if ($productId <= 0 || $qty <= 0) continue;
+        foreach ($resolved as $it) {
             $upd = $conn->prepare('UPDATE products SET stock = stock - ? WHERE id = ?');
-            $upd->bind_param('ii', $qty, $productId);
+            $upd->bind_param('ii', $it['qty'], $it['productId']);
             $upd->execute();
         }
     } catch (Exception $e) {
@@ -134,22 +160,17 @@ if ($method === 'POST') {
     $stmt->execute();
     $orderId = $conn->insert_id;
 
-    foreach ($items as $it) {
-        $name = trim($it['name'] ?? '');
-        $label = trim($it['label'] ?? '');
-        $qty = (int) ($it['qty'] ?? 1);
-        $price = (float) ($it['unitPrice'] ?? 0);
+    foreach ($resolved as $it) {
         $stmt = $conn->prepare('INSERT INTO order_items (order_id, product_name, variant_label, qty, unit_price) VALUES (?,?,?,?,?)');
-        $stmt->bind_param('issid', $orderId, $name, $label, $qty, $price);
+        $stmt->bind_param('issid', $orderId, $it['name'], $it['label'], $it['qty'], $it['unitPrice']);
         $stmt->execute();
     }
 
     $conn->commit();
 
     $itemsSummary = implode("\n", array_map(function ($it) {
-        $label = trim($it['label'] ?? '');
-        return '- ' . ($it['qty'] ?? 1) . 'x ' . ($it['name'] ?? '') . ($label ? " ($label)" : '');
-    }, $items));
+        return '- ' . $it['qty'] . 'x ' . $it['name'] . ($it['label'] ? " ({$it['label']})" : '');
+    }, $resolved));
     $custRow = $conn->query('SELECT name FROM customers WHERE id = ' . (int) $customerId)->fetch_assoc();
     notify_new_order($conn, $orderId, $custRow['name'] ?? '', $total, $itemsSummary);
 

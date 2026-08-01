@@ -5,11 +5,21 @@ require __DIR__ . '/helpers.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    $row = $conn->query('SELECT store_name, store_logo, hero_image, whatsapp, cbu, alias, titular, mp_link, about_text, about_summary, distribuidores_text, etica_text, contact_address, contact_phone, contact_email, contact_hours, notify_email, notify_whatsapp_number, notify_whatsapp_apikey, catalog_pdf, admin_user FROM settings WHERE id = 1')->fetch_assoc();
-    respond($row ?: []);
+    $row = $conn->query('SELECT store_name, store_logo, hero_image, whatsapp, cbu, alias, titular, mp_link, about_text, about_summary, distribuidores_text, etica_text, contact_address, contact_phone, contact_email, contact_hours, catalog_pdf FROM settings WHERE id = 1')->fetch_assoc();
+    $row = $row ?: [];
+
+    // Estos datos son privados del dueño de la tienda (credenciales de admin, datos
+    // de contacto para avisos): solo se devuelven si quien pide ya está logueado como admin.
+    if (is_admin()) {
+        $admin = $conn->query('SELECT notify_email, notify_whatsapp_number, notify_whatsapp_apikey, admin_user FROM settings WHERE id = 1')->fetch_assoc();
+        $row = array_merge($row, $admin ?: []);
+    }
+
+    respond($row);
 }
 
 if ($method === 'POST') {
+    require_csrf();
     require_admin();
 
     $fields = ['store_name', 'whatsapp', 'cbu', 'alias', 'titular', 'mp_link', 'about_text', 'about_summary', 'distribuidores_text', 'etica_text', 'contact_address', 'contact_phone', 'contact_email', 'contact_hours', 'notify_email', 'notify_whatsapp_number', 'notify_whatsapp_apikey'];

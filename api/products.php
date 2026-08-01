@@ -4,66 +4,12 @@ require __DIR__ . '/helpers.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-function fetch_all_products($conn) {
-    $products = [];
-    $res = $conn->query('SELECT * FROM products ORDER BY created_at DESC');
-    while ($p = $res->fetch_assoc()) {
-        $pid = (int) $p['id'];
-
-        $tiers = [];
-        $tq = $conn->prepare('SELECT min_qty, price FROM price_tiers WHERE product_id = ? ORDER BY min_qty ASC');
-        $tq->bind_param('i', $pid);
-        $tq->execute();
-        $tr = $tq->get_result();
-        while ($t = $tr->fetch_assoc()) {
-            $tiers[] = ['minQty' => (int) $t['min_qty'], 'price' => (float) $t['price']];
-        }
-        if (empty($tiers)) {
-            $tiers[] = ['minQty' => 1, 'price' => 0];
-        }
-
-        $groups = [];
-        $gq = $conn->prepare('SELECT id, name FROM variant_groups WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
-        $gq->bind_param('i', $pid);
-        $gq->execute();
-        $gr = $gq->get_result();
-        while ($g = $gr->fetch_assoc()) {
-            $gid = (int) $g['id'];
-            $options = [];
-            $oq = $conn->prepare('SELECT id, value, image, tiers_json FROM variant_options WHERE group_id = ? ORDER BY sort_order ASC, id ASC');
-            $oq->bind_param('i', $gid);
-            $oq->execute();
-            $or_ = $oq->get_result();
-            while ($o = $or_->fetch_assoc()) {
-                $optTiers = json_decode($o['tiers_json'] ?? '[]', true);
-                $options[] = ['id' => (int) $o['id'], 'value' => $o['value'], 'image' => $o['image'], 'tiers' => is_array($optTiers) ? $optTiers : []];
-            }
-            $groups[] = ['id' => $gid, 'name' => $g['name'], 'options' => $options];
-        }
-
-        $products[] = [
-            'id' => $pid,
-            'name' => $p['name'],
-            'category' => $p['category'],
-            'description' => $p['description'],
-            'image' => $p['image'],
-            'isOffer' => (bool) $p['is_offer'],
-            'offerPrice' => $p['offer_price'] !== null ? (float) $p['offer_price'] : null,
-            'createdAt' => $p['created_at'],
-            'inStock' => ((int) $p['stock']) > 0,
-            'stock' => (int) $p['stock'],
-            'tiers' => $tiers,
-            'variantGroups' => $groups,
-        ];
-    }
-    return $products;
-}
-
 if ($method === 'GET') {
     respond(fetch_all_products($conn));
 }
 
 if ($method === 'POST') {
+    require_csrf();
     require_admin();
     $action = $_POST['action'] ?? 'save';
 

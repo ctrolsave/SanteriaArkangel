@@ -13,6 +13,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    require_csrf();
     $data = json_input();
     $name = trim($data['name'] ?? '');
     $phone = trim($data['phone'] ?? '');

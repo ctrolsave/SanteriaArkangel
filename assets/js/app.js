@@ -19,14 +19,19 @@ let STATE = {
 };
 
 /* ---------------- API helper ---------------- */
+let CSRF_TOKEN = null;
+
 async function api(path, { method = "GET", json = null, form = null } = {}) {
   const opts = { method, credentials: "include" };
+  const headers = {};
+  if (method !== "GET" && CSRF_TOKEN) headers["X-CSRF-Token"] = CSRF_TOKEN;
   if (json) {
-    opts.headers = { "Content-Type": "application/json" };
+    headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(json);
   } else if (form) {
     opts.body = form; // FormData: el navegador setea el Content-Type solo
   }
+  opts.headers = headers;
   const res = await fetch("api/" + path, opts);
   let data = {};
   try { data = await res.json(); } catch (e) {}
@@ -383,6 +388,7 @@ function renderProductModal(p, qty) {
       lineId: uid(), productId: p.id, name: p.name,
       label: optionsLabel(p, PRODUCT_SELECTION),
       image: currentProductImage(p, PRODUCT_SELECTION),
+      selection: { ...PRODUCT_SELECTION },
       tiersUsed: activeTiers,
       qty, unitPrice,
     });
@@ -653,7 +659,7 @@ function renderAccount(tab) {
         <div class="field"><label class="field-label">Nombre y apellido</label><input type="text" id="reg-name"></div>
         <div class="field"><label class="field-label">Email</label><input type="email" id="reg-email"></div>
         <div class="field"><label class="field-label">Teléfono</label><input type="tel" id="reg-phone"></div>
-        <div class="field"><label class="field-label">Contraseña</label><input type="password" id="reg-pass"></div>
+        <div class="field"><label class="field-label">Contraseña</label><input type="password" id="reg-pass" minlength="8" placeholder="Mínimo 8 caracteres"></div>
         <p class="error-text hidden" id="reg-error"></p>
         <button class="btn-primary" id="reg-submit">Crear cuenta</button>
       `;
@@ -825,6 +831,7 @@ function renderAdmin(tab) {
           pass: document.getElementById("adm-pass").value,
         }});
         STATE.isAdmin = true;
+        await loadSettings(); // ahora incluye los campos privados (usuario admin, avisos)
         STATE.products = await api("products.php"); // ahora incluye el stock real
         renderAdmin("productos");
       } catch (e) {
@@ -1460,6 +1467,8 @@ function renderAdminSettings() {
   if (view === "novedades" || view === "ofertas") {
     STATE.viewFilter = view;
   }
+
+  try { CSRF_TOKEN = (await api("csrf.php")).token; } catch (e) {}
 
   await loadSettings();
   await loadCategories();

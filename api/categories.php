@@ -14,6 +14,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    require_csrf();
     require_admin();
     $action = $_POST['action'] ?? '';
 

@@ -23,6 +23,26 @@ function require_admin() {
     }
 }
 
+/**
+ * Token anti-CSRF: se guarda en la sesión PHP y el frontend lo pide una vez
+ * (api/csrf.php) al cargar la página, mandándolo de vuelta en el header
+ * X-CSRF-Token en cada POST. Como un sitio de otro dominio no puede leer la
+ * sesión del usuario ni ese header, no puede forjar el pedido/guardado.
+ */
+function csrf_token() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function require_csrf() {
+    $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+    if ($sent === '' || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $sent)) {
+        respond(['error' => 'Sesión inválida o vencida. Recargá la página e intentá de nuevo.'], 403);
+    }
+}
+
 function current_customer_id() {
     return isset($_SESSION['customer_id']) ? (int) $_SESSION['customer_id'] : null;
 }
@@ -33,6 +53,108 @@ function require_customer() {
         respond(['error' => 'Necesitás iniciar sesión para hacer esto.'], 401);
     }
     return $id;
+}
+
+function fetch_all_products($conn) {
+    $products = [];
+    $res = $conn->query('SELECT * FROM products ORDER BY created_at DESC');
+    while ($p = $res->fetch_assoc()) {
+        $pid = (int) $p['id'];
+
+        $tiers = [];
+        $tq = $conn->prepare('SELECT min_qty, price FROM price_tiers WHERE product_id = ? ORDER BY min_qty ASC');
+        $tq->bind_param('i', $pid);
+        $tq->execute();
+        $tr = $tq->get_result();
+        while ($t = $tr->fetch_assoc()) {
+            $tiers[] = ['minQty' => (int) $t['min_qty'], 'price' => (float) $t['price']];
+        }
+        if (empty($tiers)) {
+            $tiers[] = ['minQty' => 1, 'price' => 0];
+        }
+
+        $groups = [];
+        $gq = $conn->prepare('SELECT id, name FROM variant_groups WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+        $gq->bind_param('i', $pid);
+        $gq->execute();
+        $gr = $gq->get_result();
+        while ($g = $gr->fetch_assoc()) {
+            $gid = (int) $g['id'];
+            $options = [];
+            $oq = $conn->prepare('SELECT id, value, image, tiers_json FROM variant_options WHERE group_id = ? ORDER BY sort_order ASC, id ASC');
+            $oq->bind_param('i', $gid);
+            $oq->execute();
+            $or_ = $oq->get_result();
+            while ($o = $or_->fetch_assoc()) {
+                $optTiers = json_decode($o['tiers_json'] ?? '[]', true);
+                $options[] = ['id' => (int) $o['id'], 'value' => $o['value'], 'image' => $o['image'], 'tiers' => is_array($optTiers) ? $optTiers : []];
+            }
+            $groups[] = ['id' => $gid, 'name' => $g['name'], 'options' => $options];
+        }
+
+        $products[] = [
+            'id' => $pid,
+            'name' => $p['name'],
+            'category' => $p['category'],
+            'description' => $p['description'],
+            'image' => $p['image'],
+            'isOffer' => (bool) $p['is_offer'],
+            'offerPrice' => $p['offer_price'] !== null ? (float) $p['offer_price'] : null,
+            'createdAt' => $p['created_at'],
+            'inStock' => ((int) $p['stock']) > 0,
+            'stock' => (int) $p['stock'],
+            'tiers' => $tiers,
+            'variantGroups' => $groups,
+        ];
+    }
+    return $products;
+}
+
+/**
+ * Las siguientes cuatro funciones recalculan, del lado del servidor, el mismo
+ * precio que ya calcula el frontend (ver assets/js/app.js: priceForQty,
+ * effectiveTiers, resolveTiersForSelection, optionsLabel). Se usan al crear un
+ * pedido para no confiar nunca en el precio/nombre/variante que mande el cliente.
+ */
+function price_for_qty($tiers, $qty) {
+    usort($tiers, fn($a, $b) => $a['minQty'] <=> $b['minQty']);
+    $price = $tiers[0]['price'] ?? 0;
+    foreach ($tiers as $t) {
+        if ($qty >= $t['minQty']) $price = $t['price'];
+    }
+    return (float) $price;
+}
+
+function effective_tiers($product, $tiersList) {
+    $base = !empty($tiersList) ? $tiersList : $product['tiers'];
+    usort($base, fn($a, $b) => $a['minQty'] <=> $b['minQty']);
+    if (!empty($base) && $product['isOffer'] && $product['offerPrice']) {
+        $base[0]['price'] = $product['offerPrice'];
+    }
+    return $base;
+}
+
+function resolve_tiers_for_selection($product, $selection) {
+    foreach ($product['variantGroups'] as $g) {
+        if (!isset($selection[$g['id']])) continue;
+        $optId = $selection[$g['id']];
+        foreach ($g['options'] as $o) {
+            if ($o['id'] == $optId && !empty($o['tiers'])) return $o['tiers'];
+        }
+    }
+    return $product['tiers'];
+}
+
+function options_label($product, $selection) {
+    $parts = [];
+    foreach ($product['variantGroups'] as $g) {
+        if (!isset($selection[$g['id']])) continue;
+        $optId = $selection[$g['id']];
+        foreach ($g['options'] as $o) {
+            if ($o['id'] == $optId) { $parts[] = $g['name'] . ': ' . $o['value']; break; }
+        }
+    }
+    return implode(' · ', $parts);
 }
 
 /**

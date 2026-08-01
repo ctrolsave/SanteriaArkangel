@@ -144,3 +144,11 @@ CREATE TABLE IF NOT EXISTS order_items (
   unit_price DECIMAL(12,2) NOT NULL DEFAULT 0,
   FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Registra los intentos fallidos de login del panel de administrador, para
+-- poder bloquear por unos minutos a una IP que falla demasiadas veces seguidas.
+CREATE TABLE IF NOT EXISTS admin_login_attempts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ip VARCHAR(45) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
