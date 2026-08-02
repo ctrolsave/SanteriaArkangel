@@ -54,6 +54,13 @@ function fmt(n) {
   return "$" + Number(n || 0).toLocaleString("es-AR");
 }
 
+function statusClass(status) {
+  if (status === "Pendiente") return "status-pending";
+  if (status === "Cancelado") return "status-cancelled";
+  if (status === "Despachado" || status === "Entregado") return "status-done";
+  return ""; // Confirmado, Listo para despachar: color por defecto
+}
+
 // El "YYYY-MM-DD HH:MM:SS" que manda PHP no es válido para el constructor Date
 // de Safari/iOS sin cambiar el espacio por una "T" (formato ISO).
 function parseServerDate(str) {
@@ -713,6 +720,11 @@ function renderAccount(tab) {
       el.innerHTML = `<div id="account-tab-body"></div>`;
     } else {
       el.innerHTML = `
+        <div class="account-header">
+          <div class="account-header-icon">${tab === "register" ? "✨" : "👋"}</div>
+          <h3 class="display">${tab === "register" ? "Creá tu cuenta" : "Bienvenido de nuevo"}</h3>
+          <p class="account-header-sub">${tab === "register" ? "Es gratis y te sirve para hacer seguimiento de tus pedidos." : "Iniciá sesión para ver tus pedidos y comprar más rápido."}</p>
+        </div>
         <div class="tabs">
           <button class="tab-btn ${tab === "login" ? "active" : ""}" data-tab="login">Iniciar sesión</button>
           <button class="tab-btn ${tab === "register" ? "active" : ""}" data-tab="register">Crear cuenta</button>
@@ -873,7 +885,7 @@ function renderAccount(tab) {
 
         return `
         <div class="order-card">
-          <span class="status">${escapeHtml(o.status)}</span>
+          <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
           <p style="margin:4px 0;">Pedido #${o.id} — ${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</p>
           ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
           <p style="margin-top:6px; font-weight:600;">Total: ${fmt(o.total)}</p>
@@ -887,13 +899,18 @@ function renderAccount(tab) {
   } else {
     const c = STATE.customer;
     body.innerHTML = `
+      <p class="field-group-title">Datos personales</p>
       <div class="field"><label class="field-label">Nombre y apellido</label><input type="text" id="pf-name" value="${escapeHtml(c.name)}"></div>
       <div class="field"><label class="field-label">Email</label><input type="email" value="${escapeHtml(c.email)}" disabled></div>
       <div class="field"><label class="field-label">Teléfono</label><input type="tel" id="pf-phone" value="${escapeHtml(c.phone || "")}"></div>
+
+      <p class="field-group-title">Dirección de envío</p>
       <div class="field"><label class="field-label">Dirección</label><input type="text" id="pf-address" value="${escapeHtml(c.address || "")}"></div>
-      <div class="field"><label class="field-label">Ciudad</label><input type="text" id="pf-city" value="${escapeHtml(c.city || "")}"></div>
-      <div class="field"><label class="field-label">Provincia</label><input type="text" id="pf-province" value="${escapeHtml(c.province || "")}"></div>
-      <div class="field"><label class="field-label">Código postal</label><input type="text" id="pf-postal" value="${escapeHtml(c.postal_code || "")}"></div>
+      <div class="field-row">
+        <div class="field"><label class="field-label">Ciudad</label><input type="text" id="pf-city" value="${escapeHtml(c.city || "")}"></div>
+        <div class="field"><label class="field-label">Provincia</label><input type="text" id="pf-province" value="${escapeHtml(c.province || "")}"></div>
+        <div class="field"><label class="field-label">Código postal</label><input type="text" id="pf-postal" value="${escapeHtml(c.postal_code || "")}"></div>
+      </div>
       <button class="btn-primary" id="pf-save">Guardar datos</button>
     `;
     document.getElementById("pf-save").addEventListener("click", async () => {
@@ -933,7 +950,11 @@ function renderAdmin(tab) {
 
   if (!STATE.isAdmin) {
     el.innerHTML = `
-      <h3 class="display" style="font-size:1.4rem;">Administrar</h3>
+      <div class="account-header account-header-admin">
+        <div class="account-header-icon">🔒</div>
+        <h3 class="display">Administrar</h3>
+        <p class="account-header-sub">Acceso solo para el equipo de Santería Arkangel.</p>
+      </div>
       <div class="field"><label class="field-label">Usuario</label><input type="text" id="adm-user"></div>
       <div class="field"><label class="field-label">Contraseña</label>${pwFieldHtml("adm-pass")}</div>
       <p class="error-text hidden" id="adm-error"></p>
