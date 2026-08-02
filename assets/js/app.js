@@ -54,6 +54,11 @@ function fmt(n) {
   return "$" + Number(n || 0).toLocaleString("es-AR");
 }
 
+function monthLabel(date) {
+  const label = date.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 function statusClass(status) {
   if (status === "Pendiente") return "status-pending";
   if (status === "Cancelado") return "status-cancelled";
@@ -860,7 +865,17 @@ function renderAccount(tab) {
       }
       const s = STATE.settings;
       const inProcess = ["Pendiente", "Confirmado", "Listo para despachar"];
-      body.innerHTML = orders.map(o => {
+      let lastMonth = null;
+      const parts = [];
+
+      orders.forEach(o => {
+        const orderDate = parseServerDate(o.createdAt);
+        const month = monthLabel(orderDate);
+        if (month !== lastMonth) {
+          parts.push(`<p class="order-group-header">${month}</p>`);
+          lastMonth = month;
+        }
+
         const methodLabel = o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia bancaria";
         let extra = "";
 
@@ -883,18 +898,29 @@ function renderAccount(tab) {
             </div>`;
         }
 
-        return `
-        <div class="order-card">
-          <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
-          <p style="margin:4px 0;">Pedido #${o.id} — ${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</p>
-          ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
-          <p style="margin-top:6px; font-weight:600;">Total: ${fmt(o.total)}</p>
-          <p style="font-size:0.78rem; color:var(--muted);">Entrega: ${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
-          <p style="font-size:0.78rem; color:var(--muted);">Método de pago: ${methodLabel}</p>
-          ${extra}
-        </div>
-      `;
-      }).join("");
+        parts.push(`
+        <details class="order-card">
+          <summary class="order-summary">
+            <div class="order-summary-top">
+              <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
+              <span class="order-summary-total">${fmt(o.total)}</span>
+            </div>
+            <div class="order-summary-bottom">
+              <span>Pedido #${o.id}</span>
+              <span>${orderDate.toLocaleDateString("es-AR")}</span>
+            </div>
+          </summary>
+          <div class="order-details">
+            ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
+            <p style="font-size:0.78rem; color:var(--muted); margin-top:6px;">Entrega: ${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
+            <p style="font-size:0.78rem; color:var(--muted);">Método de pago: ${methodLabel}</p>
+            ${extra}
+          </div>
+        </details>
+      `);
+      });
+
+      body.innerHTML = parts.join("");
     });
   } else {
     const c = STATE.customer;

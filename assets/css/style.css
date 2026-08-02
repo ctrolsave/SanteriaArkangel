@@ -379,14 +379,37 @@ footer.site-footer { background: var(--deep); color: rgba(255,255,255,0.82); mar
   text-align: center; font-size: 0.78rem; color: rgba(255,255,255,0.6);
 }
 
-.order-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; background: var(--panel); font-size: 0.85rem; }
+.order-card { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px; background: var(--panel); font-size: 0.85rem; overflow: hidden; }
 .order-card .status {
   display: inline-block; padding: 3px 12px; border-radius: 999px; background: var(--accent); color: #fff;
-  font-size: 0.72rem; font-weight: 600; margin-bottom: 6px;
+  font-size: 0.72rem; font-weight: 600;
 }
 .order-card .status.status-pending { background: #fff4e0; color: #8a5a00; }
 .order-card .status.status-done { background: #e6f7ee; color: #1a6b3f; }
 .order-card .status.status-cancelled { background: rgba(201,79,79,0.15); color: var(--danger); }
+
+/* "Mis pedidos": tarjeta colapsable (<details>/<summary>) */
+.order-summary {
+  position: relative; padding: 12px 34px 12px 12px; cursor: pointer; list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.order-summary::-webkit-details-marker { display: none; }
+.order-summary::marker { content: ""; }
+.order-summary::after {
+  content: "⌄"; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 1rem; color: var(--muted); transition: transform .15s ease;
+}
+.order-card[open] .order-summary::after { transform: translateY(-50%) rotate(180deg); }
+.order-card[open] .order-summary { border-bottom: 1px solid var(--line); }
+.order-summary-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 5px; }
+.order-summary-total { font-weight: 700; color: var(--text); }
+.order-summary-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.8rem; color: var(--muted); }
+.order-details { padding: 10px 12px 12px; }
+.order-group-header {
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600;
+  margin: 18px 0 8px;
+}
+.order-group-header:first-child { margin-top: 0; }
 
 /* Cabecera de los popups de cuenta / admin */
 .account-header { text-align: center; margin-bottom: 18px; }
