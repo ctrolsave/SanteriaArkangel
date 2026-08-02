@@ -234,7 +234,7 @@ header.site-header {
 /* Overlays / modales */
 .overlay {
   position: fixed; inset: 0; z-index: 40; background: rgba(10,20,30,0.55);
-  display: flex; align-items: flex-start; justify-content: center; padding: 12px; overflow-y: auto;
+  display: flex; align-items: center; justify-content: center; padding: 12px; overflow-y: auto;
   animation: overlayFadeIn .15s ease;
 }
 .modal {
