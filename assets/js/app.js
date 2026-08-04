@@ -184,17 +184,21 @@ async function loadSettings() {
   }
   document.getElementById("about-summary").textContent = s.about_summary || "";
 
+  // Las url() dentro de una variable CSS se resuelven relativas a donde se
+  // USA (style.css), no a donde se define — por eso hace falta una ruta
+  // absoluta con "/" adelante, o quedaría buscando el archivo dentro de
+  // assets/css/.
   const hero = document.getElementById("hero");
   if (s.hero_image) {
     hero.classList.add("has-image");
-    hero.style.setProperty("--hero-img-desktop", `url(${s.hero_image})`);
+    hero.style.setProperty("--hero-img-desktop", `url(/${s.hero_image})`);
   } else {
     hero.classList.remove("has-image");
     hero.style.removeProperty("--hero-img-desktop");
   }
   if (s.hero_image_mobile) {
     hero.classList.add("has-mobile-image");
-    hero.style.setProperty("--hero-img-mobile", `url(${s.hero_image_mobile})`);
+    hero.style.setProperty("--hero-img-mobile", `url(/${s.hero_image_mobile})`);
   } else {
     hero.classList.remove("has-mobile-image");
     hero.style.removeProperty("--hero-img-mobile");
