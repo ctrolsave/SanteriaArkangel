@@ -5,7 +5,7 @@ require __DIR__ . '/helpers.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    $row = $conn->query('SELECT store_name, store_logo, hero_image, whatsapp, cbu, alias, titular, mp_link, about_text, about_summary, distribuidores_text, etica_text, contact_address, contact_phone, contact_email, contact_hours, catalog_pdf FROM settings WHERE id = 1')->fetch_assoc();
+    $row = $conn->query('SELECT store_name, store_logo, hero_image, hero_image_mobile, whatsapp, cbu, alias, titular, mp_link, about_text, about_summary, distribuidores_text, etica_text, contact_address, contact_phone, contact_email, contact_hours, catalog_pdf FROM settings WHERE id = 1')->fetch_assoc();
     $row = $row ?: [];
 
     // Estos datos son privados del dueño de la tienda (credenciales de admin, datos
@@ -61,6 +61,17 @@ if ($method === 'POST') {
     }
     if (isset($_POST['remove_hero_image']) && $_POST['remove_hero_image'] === '1') {
         $updates[] = 'hero_image = ?';
+        $params[] = '';
+        $types .= 's';
+    }
+    $heroMobilePath = handle_image_upload('hero_image_mobile', 'brand', 1000);
+    if ($heroMobilePath) {
+        $updates[] = 'hero_image_mobile = ?';
+        $params[] = $heroMobilePath;
+        $types .= 's';
+    }
+    if (isset($_POST['remove_hero_image_mobile']) && $_POST['remove_hero_image_mobile'] === '1') {
+        $updates[] = 'hero_image_mobile = ?';
         $params[] = '';
         $types .= 's';
     }

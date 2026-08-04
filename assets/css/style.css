@@ -90,12 +90,22 @@ header.site-header {
 }
 @media (min-width: 768px) { .hero { min-height: 760px; } }
 .hero.has-image {
-  background-size: contain; background-position: center 70%; background-repeat: no-repeat;
-  background-color: var(--bg-alt);
+  background-image: var(--hero-img-desktop); background-size: contain; background-position: center 70%;
+  background-repeat: no-repeat; background-color: var(--bg-alt);
 }
 .hero.has-image::before {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(100deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 72%);
+}
+/* Si se cargó una foto vertical especial para celular, se usa esa a pantalla
+   completa (sin necesitar el "contain" de resguardo) en vez de la horizontal. */
+@media (max-width: 767px) {
+  .hero.has-image.has-mobile-image {
+    background-image: var(--hero-img-mobile); background-size: cover; background-position: center top;
+  }
+  .hero.has-image.has-mobile-image::before {
+    background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 140px);
+  }
 }
 .hero-content { position: relative; max-width: 640px; }
 .hero-categories { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; position: relative; }

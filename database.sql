@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS settings (
   store_name VARCHAR(150) NOT NULL DEFAULT 'Santería Arkangel',
   store_logo VARCHAR(255) DEFAULT 'assets/img/logo-arkangel.png',
   hero_image VARCHAR(255) DEFAULT '',
+  hero_image_mobile VARCHAR(255) DEFAULT '',
   whatsapp VARCHAR(30) DEFAULT '',
   cbu VARCHAR(30) DEFAULT '',
   alias VARCHAR(60) DEFAULT '',

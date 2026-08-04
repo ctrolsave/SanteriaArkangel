@@ -187,10 +187,17 @@ async function loadSettings() {
   const hero = document.getElementById("hero");
   if (s.hero_image) {
     hero.classList.add("has-image");
-    hero.style.backgroundImage = `url(${s.hero_image})`;
+    hero.style.setProperty("--hero-img-desktop", `url(${s.hero_image})`);
   } else {
     hero.classList.remove("has-image");
-    hero.style.backgroundImage = "";
+    hero.style.removeProperty("--hero-img-desktop");
+  }
+  if (s.hero_image_mobile) {
+    hero.classList.add("has-mobile-image");
+    hero.style.setProperty("--hero-img-mobile", `url(${s.hero_image_mobile})`);
+  } else {
+    hero.classList.remove("has-mobile-image");
+    hero.style.removeProperty("--hero-img-mobile");
   }
 
   const catalogLink = document.getElementById("catalog-link");
@@ -1479,7 +1486,7 @@ function printOrderTicket(o) {
 function renderAdminSettings() {
   const body = document.getElementById("admin-tab-body");
   const s = STATE.settings;
-  let logoFile = null, heroFile = null, catalogFile = null;
+  let logoFile = null, heroFile = null, heroMobileFile = null, catalogFile = null;
 
   body.innerHTML = `
     <label class="field-label">Logo de la tienda</label>
@@ -1489,12 +1496,21 @@ function renderAdminSettings() {
       <input type="file" accept="image/*" id="logo-input" class="hidden">
     </div>
 
-    <label class="field-label">Foto de cielo/nubes de fondo</label>
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+    <label class="field-label">Foto de fondo — horizontal (desktop)</label>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
       <div class="upload-preview" id="hero-preview" style="width:96px;">${s.hero_image ? `<img src="${s.hero_image}">` : "🕊️"}</div>
       <button class="btn-secondary" id="hero-btn">📷 Subir</button>
       <input type="file" accept="image/*" id="hero-input" class="hidden">
     </div>
+    <p style="font-size:0.72rem; color:var(--muted); margin:0 0 14px;">Se usa en pantallas anchas (computadora, tablet).</p>
+
+    <label class="field-label">Foto de fondo — vertical (celular)</label>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+      <div class="upload-preview" id="hero-mobile-preview" style="width:70px; height:110px;">${s.hero_image_mobile ? `<img src="${s.hero_image_mobile}">` : "🕊️"}</div>
+      <button class="btn-secondary" id="hero-mobile-btn">📷 Subir</button>
+      <input type="file" accept="image/*" id="hero-mobile-input" class="hidden">
+    </div>
+    <p style="font-size:0.72rem; color:var(--muted); margin:0 0 14px;">Opcional — una foto en formato vertical (más alta que ancha) que se muestra solo en el celular, en vez de recortar la horizontal. Si no cargás una, se usa la horizontal en todas las pantallas.</p>
 
     <label class="field-label">Catálogo en PDF</label>
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
@@ -1560,6 +1576,11 @@ function renderAdminSettings() {
     heroFile = e.target.files[0];
     if (heroFile) document.getElementById("hero-preview").innerHTML = `<img src="${URL.createObjectURL(heroFile)}">`;
   });
+  document.getElementById("hero-mobile-btn").addEventListener("click", () => document.getElementById("hero-mobile-input").click());
+  document.getElementById("hero-mobile-input").addEventListener("change", e => {
+    heroMobileFile = e.target.files[0];
+    if (heroMobileFile) document.getElementById("hero-mobile-preview").innerHTML = `<img src="${URL.createObjectURL(heroMobileFile)}">`;
+  });
   document.getElementById("catalog-btn").addEventListener("click", () => document.getElementById("catalog-input").click());
   document.getElementById("catalog-input").addEventListener("change", e => {
     catalogFile = e.target.files[0];
@@ -1589,6 +1610,7 @@ function renderAdminSettings() {
     if (pass) fd.append("admin_pass", pass);
     if (logoFile) fd.append("store_logo", logoFile);
     if (heroFile) fd.append("hero_image", heroFile);
+    if (heroMobileFile) fd.append("hero_image_mobile", heroMobileFile);
     if (catalogFile) fd.append("catalog_pdf", catalogFile);
 
     try {
