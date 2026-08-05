@@ -172,11 +172,17 @@ function showView(id) {
   document.getElementById("store-view").classList.add("hidden");
   document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
+  // Los botones flotantes (WhatsApp, engranaje de admin) son atajos de la
+  // tienda: no tienen sentido arriba de la página de cuenta/admin.
+  document.getElementById("wa-float").classList.add("hidden");
+  document.getElementById("btn-admin").classList.add("hidden");
   window.scrollTo({ top: 0 });
 }
 function showStore() {
   document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
   document.getElementById("store-view").classList.remove("hidden");
+  document.getElementById("btn-admin").classList.remove("hidden");
+  if (STATE.settings?.whatsapp) document.getElementById("wa-float").classList.remove("hidden");
   window.scrollTo({ top: 0 });
 }
 document.getElementById("account-back-link").addEventListener("click", (e) => { e.preventDefault(); showStore(); });
