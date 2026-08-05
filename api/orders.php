@@ -27,6 +27,8 @@ function order_with_items($conn, $orderRow) {
         'createdAt' => $orderRow['created_at'],
         'trackingCode' => $orderRow['tracking_code'] ?? '',
         'carrier' => $orderRow['carrier'] ?? '',
+        'paymentConfirmed' => (bool) ($orderRow['payment_confirmed'] ?? false),
+        'paidAt' => $orderRow['paid_at'] ?? null,
         'shipping' => json_decode($orderRow['shipping_snapshot'] ?? '{}', true) ?: [],
         'items' => $items,
     ];
@@ -77,6 +79,26 @@ if ($method === 'POST') {
         }
         $stmt = $conn->prepare('UPDATE orders SET status = ?, tracking_code = ?, carrier = ? WHERE id = ?');
         $stmt->bind_param('sssi', $status, $trackingCode, $carrier, $id);
+        $stmt->execute();
+        respond(['ok' => true]);
+    }
+
+    // Marca (o desmarca) un pedido como pagado. Es independiente del estado de
+    // envío para poder archivar pedidos ya cobrados sin importar en qué punto
+    // de la logística estén.
+    if ($action === 'set_payment') {
+        require_admin();
+        $id = (int) ($data['id'] ?? 0);
+        $paid = !empty($data['paid']);
+        if ($id <= 0) {
+            respond(['error' => 'Datos de pedido inválidos.'], 400);
+        }
+        if ($paid) {
+            $stmt = $conn->prepare('UPDATE orders SET payment_confirmed = 1, paid_at = NOW() WHERE id = ?');
+        } else {
+            $stmt = $conn->prepare('UPDATE orders SET payment_confirmed = 0, paid_at = NULL WHERE id = ?');
+        }
+        $stmt->bind_param('i', $id);
         $stmt->execute();
         respond(['ok' => true]);
     }

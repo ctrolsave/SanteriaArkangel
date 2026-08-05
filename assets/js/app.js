@@ -555,6 +555,7 @@ function changeLineQty(lineId, delta) {
 ============================================================ */
 let CHECKOUT_PAY_METHOD = "transferencia";
 let CHECKOUT_DELIVERY_METHOD = "envio";
+let CHECKOUT_RESUME = false; // si viene desde "Ir a pagar", retoma el checkout apenas se loguea/registra
 
 function openCheckout() {
   CHECKOUT_PAY_METHOD = "transferencia";
@@ -575,7 +576,8 @@ function renderCheckout() {
     `;
     document.getElementById("checkout-login-btn").addEventListener("click", () => {
       close("modal-checkout");
-      openAccount("login");
+      CHECKOUT_RESUME = true;
+      openAccount("register");
     });
     return;
   }
@@ -721,7 +723,19 @@ async function refreshCustomerSession() {
   document.getElementById("btn-account").textContent = STATE.customer ? `Hola, ${STATE.customer.name.split(" ")[0]}` : "Mi cuenta";
 }
 
-document.getElementById("btn-account").addEventListener("click", () => openAccount(STATE.customer ? "profile" : "login"));
+// Después de loguearse/registrarse: si venía de "Ir a pagar", retoma el checkout
+// con el carrito intacto; si no, lo lleva al resumen de su cuenta.
+function afterAuthSuccess() {
+  if (CHECKOUT_RESUME) {
+    CHECKOUT_RESUME = false;
+    close("modal-account");
+    openCheckout();
+  } else {
+    renderAccount("summary");
+  }
+}
+
+document.getElementById("btn-account").addEventListener("click", () => openAccount(STATE.customer ? "summary" : "login"));
 
 function openAccount(tab) {
   renderAccount(tab);
@@ -817,7 +831,7 @@ function renderAccount(tab) {
             pass: document.getElementById("reg-pass").value,
           }});
           await refreshCustomerSession();
-          renderAccount("profile");
+          afterAuthSuccess();
         } catch (e) {
           const err = document.getElementById("reg-error");
           err.textContent = e.message; err.classList.remove("hidden");
@@ -839,7 +853,7 @@ function renderAccount(tab) {
             pass: document.getElementById("login-pass").value,
           }});
           await refreshCustomerSession();
-          renderAccount("profile");
+          afterAuthSuccess();
         } catch (e) {
           const err = document.getElementById("login-error");
           err.textContent = e.message; err.classList.remove("hidden");
@@ -849,10 +863,11 @@ function renderAccount(tab) {
     return;
   }
 
-  // Cliente logueado: perfil / pedidos
+  // Cliente logueado: resumen / perfil / pedidos
   el.innerHTML = `
     <div class="tabs">
-      <button class="tab-btn ${tab !== "orders" ? "active" : ""}" data-tab="profile">Mi perfil</button>
+      <button class="tab-btn ${tab === "summary" ? "active" : ""}" data-tab="summary">Resumen</button>
+      <button class="tab-btn ${tab === "profile" ? "active" : ""}" data-tab="profile">Mi perfil</button>
       <button class="tab-btn ${tab === "orders" ? "active" : ""}" data-tab="orders">Mis pedidos</button>
       <button class="btn-secondary" id="logout-btn" style="margin-left:auto;">Cerrar sesión</button>
     </div>
@@ -867,6 +882,35 @@ function renderAccount(tab) {
   });
 
   const body = document.getElementById("account-tab-body");
+  if (tab === "summary") {
+    body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
+    api("orders.php?scope=mine").then(orders => {
+      const porPagar = orders.filter(o => !o.paymentConfirmed);
+      const realizados = orders.filter(o => o.paymentConfirmed);
+      const totalGastado = realizados.reduce((s, o) => s + o.total, 0);
+      body.innerHTML = `
+        <div class="stat-grid">
+          <div class="stat-card accent">
+            <div class="stat-value">${porPagar.length}</div>
+            <div class="stat-label">⏳ Pedidos por pagar</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${realizados.length}</div>
+            <div class="stat-label">✅ Pedidos realizados</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value">${fmt(totalGastado)}</div>
+            <div class="stat-label">💰 Total en pedidos realizados</div>
+          </div>
+        </div>
+        ${orders.length === 0
+          ? `<p style="color:var(--muted); font-size:0.9rem;">Todavía no hiciste ningún pedido.</p>`
+          : `<button class="btn-secondary" id="summary-go-orders">Ver mis pedidos →</button>`}
+      `;
+      document.getElementById("summary-go-orders")?.addEventListener("click", () => renderAccount("orders"));
+    });
+    return;
+  }
   if (tab === "orders") {
     body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
     api("orders.php?scope=mine").then(orders => {
@@ -1006,7 +1050,7 @@ function renderAdmin(tab) {
         STATE.isAdmin = true;
         await loadSettings(); // ahora incluye los campos privados (usuario admin, avisos)
         STATE.products = await api("products.php"); // ahora incluye el stock real
-        renderAdmin("productos");
+        renderAdmin("dashboard");
       } catch (e) {
         const err = document.getElementById("adm-error");
         err.textContent = e.message; err.classList.remove("hidden");
@@ -1017,6 +1061,7 @@ function renderAdmin(tab) {
 
   el.innerHTML = `
     <div class="tabs">
+      <button class="tab-btn ${tab === "dashboard" ? "active" : ""}" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn ${tab === "productos" ? "active" : ""}" data-tab="productos">Productos</button>
       <button class="tab-btn ${tab === "categorias" ? "active" : ""}" data-tab="categorias">Categorías</button>
       <button class="tab-btn ${tab === "pedidos" ? "active" : ""}" data-tab="pedidos">Pedidos</button>
@@ -1026,10 +1071,52 @@ function renderAdmin(tab) {
   `;
   el.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => renderAdmin(b.dataset.tab)));
 
-  if (tab === "pedidos") renderAdminOrders();
+  if (tab === "dashboard") renderAdminDashboard();
+  else if (tab === "pedidos") renderAdminOrders();
   else if (tab === "config") renderAdminSettings();
   else if (tab === "categorias") renderAdminCategories();
   else renderAdminProducts();
+}
+
+async function renderAdminDashboard() {
+  const body = document.getElementById("admin-tab-body");
+  body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
+  const orders = await api("orders.php?scope=all");
+
+  const porPagar = orders.filter(o => !o.paymentConfirmed);
+  const realizados = orders.filter(o => o.paymentConfirmed);
+  const totalFacturado = realizados.reduce((s, o) => s + o.total, 0);
+
+  const byStatus = {};
+  ORDER_STATUSES.forEach(s => { byStatus[s] = 0; });
+  orders.forEach(o => { byStatus[o.status] = (byStatus[o.status] || 0) + 1; });
+
+  body.innerHTML = `
+    <div class="stat-grid">
+      <div class="stat-card accent">
+        <div class="stat-value">${porPagar.length}</div>
+        <div class="stat-label">⏳ Pedidos por pagar</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${realizados.length}</div>
+        <div class="stat-label">✅ Pedidos realizados</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">${fmt(totalFacturado)}</div>
+        <div class="stat-label">💰 Total facturado (pagados)</div>
+      </div>
+    </div>
+    <p class="field-group-title" style="margin-top:0;">Pedidos por estado</p>
+    <div class="status-breakdown">
+      ${ORDER_STATUSES.map(s => `<span class="status-breakdown-item">${escapeHtml(s)}: ${byStatus[s]}</span>`).join("")}
+    </div>
+    <button class="btn-secondary" id="dash-go-orders">Ver pedidos por pagar →</button>
+  `;
+
+  document.getElementById("dash-go-orders").addEventListener("click", () => {
+    ADMIN_ORDERS_FILTER = "pending";
+    renderAdmin("pedidos");
+  });
 }
 
 function renderAdminCategories() {
@@ -1382,48 +1469,68 @@ function renderProductForm(product) {
 }
 
 /* ---- Admin: pedidos ---- */
+let ADMIN_ORDERS_FILTER = "pending"; // "pending" (por pagar) | "paid" (realizados/archivo)
+
 async function renderAdminOrders() {
   const body = document.getElementById("admin-tab-body");
   body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
-  const orders = await api("orders.php?scope=all");
-  if (orders.length === 0) {
-    body.innerHTML = `<p style="color:var(--muted); font-size:0.9rem;">Todavía no hay pedidos.</p>`;
-    return;
-  }
-  body.innerHTML = orders.map(o => {
-    const phone = (o.shipping && o.shipping.phone) || "";
-    return `
-    <details class="order-card">
-      <summary class="order-summary">
-        <div class="order-summary-top">
-          <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
-          <span class="order-summary-total">${fmt(o.total)}</span>
-        </div>
-        <div class="order-summary-bottom">
-          <span>Pedido #${o.id} — ${escapeHtml(o.customerName)}</span>
-          <span>${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</span>
-        </div>
-      </summary>
-      <div class="order-details">
-        <p style="margin:0 0 4px; color:var(--muted); font-size:0.8rem;">${escapeHtml(o.customerEmail)}</p>
-        ${phone ? `<p style="margin:0 0 8px; font-size:0.85rem;">📞 <a href="https://wa.me/${phone.replace(/\D/g, "")}" target="_blank" rel="noreferrer" style="color:var(--accent);">${escapeHtml(phone)}</a></p>` : ""}
-        <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${parseServerDate(o.createdAt).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
-        <p style="margin:0 0 8px; font-size:0.8rem; font-weight:600;">${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
-        ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
-        <select class="status-select" data-id="${o.id}" style="margin:8px 0;">
-          ${ORDER_STATUSES.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
-        </select>
-        ${o.deliveryMethod === "retiro" ? "" : `
-        <div class="tracking-fields" data-id="${o.id}" style="display:flex; gap:6px; margin-bottom:6px;">
-          <input type="text" class="tracking-code-input" data-id="${o.id}" placeholder="Código de seguimiento" value="${escapeHtml(o.trackingCode || "")}" style="flex:1;">
-          <input type="text" class="carrier-input" data-id="${o.id}" placeholder="Empresa de envío o link" value="${escapeHtml(o.carrier || "")}" style="flex:1;">
-        </div>`}
-        <button class="btn-secondary save-order-btn" data-id="${o.id}">Guardar cambios</button>
-        <button class="btn-secondary print-order-btn" data-id="${o.id}">🖨️ Imprimir ticket</button>
-      </div>
-    </details>
+  const allOrders = await api("orders.php?scope=all");
+
+  const filterBarHtml = `
+    <div class="order-filter">
+      <button class="chip order-filter-opt ${ADMIN_ORDERS_FILTER === "pending" ? "active" : ""}" data-filter="pending">⏳ Por pagar</button>
+      <button class="chip order-filter-opt ${ADMIN_ORDERS_FILTER === "paid" ? "active" : ""}" data-filter="paid">✅ Realizados</button>
+    </div>
   `;
-  }).join("");
+
+  const orders = allOrders.filter(o => ADMIN_ORDERS_FILTER === "paid" ? o.paymentConfirmed : !o.paymentConfirmed);
+
+  if (orders.length === 0) {
+    body.innerHTML = filterBarHtml + `<p style="color:var(--muted); font-size:0.9rem;">${ADMIN_ORDERS_FILTER === "paid" ? "Todavía no hay pedidos realizados." : "No hay pedidos por pagar."}</p>`;
+  } else {
+    body.innerHTML = filterBarHtml + orders.map(o => {
+      const phone = (o.shipping && o.shipping.phone) || "";
+      return `
+      <details class="order-card">
+        <summary class="order-summary">
+          <div class="order-summary-top">
+            <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
+            <span class="order-summary-total">${fmt(o.total)}</span>
+          </div>
+          <div class="order-summary-bottom">
+            <span>Pedido #${o.id} — ${escapeHtml(o.customerName)}</span>
+            <span>${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</span>
+          </div>
+        </summary>
+        <div class="order-details">
+          <p style="margin:0 0 4px; color:var(--muted); font-size:0.8rem;">${escapeHtml(o.customerEmail)}</p>
+          ${phone ? `<p style="margin:0 0 8px; font-size:0.85rem;">📞 <a href="https://wa.me/${phone.replace(/\D/g, "")}" target="_blank" rel="noreferrer" style="color:var(--accent);">${escapeHtml(phone)}</a></p>` : ""}
+          <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${parseServerDate(o.createdAt).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
+          <p style="margin:0 0 8px; font-size:0.8rem; font-weight:600;">${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
+          ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
+          <select class="status-select" data-id="${o.id}" style="margin:8px 0;">
+            ${ORDER_STATUSES.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+          ${o.deliveryMethod === "retiro" ? "" : `
+          <div class="tracking-fields" data-id="${o.id}" style="display:flex; gap:6px; margin-bottom:6px;">
+            <input type="text" class="tracking-code-input" data-id="${o.id}" placeholder="Código de seguimiento" value="${escapeHtml(o.trackingCode || "")}" style="flex:1;">
+            <input type="text" class="carrier-input" data-id="${o.id}" placeholder="Empresa de envío o link" value="${escapeHtml(o.carrier || "")}" style="flex:1;">
+          </div>`}
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-secondary save-order-btn" data-id="${o.id}">Guardar cambios</button>
+            <button class="btn-secondary print-order-btn" data-id="${o.id}">🖨️ Imprimir ticket</button>
+            <button class="btn-secondary mark-paid-btn" data-id="${o.id}" data-paid="${o.paymentConfirmed ? "1" : "0"}">${o.paymentConfirmed ? "↩️ Marcar como no pagado" : "💰 Marcar como pagado"}</button>
+          </div>
+        </div>
+      </details>
+    `;
+    }).join("");
+  }
+
+  body.querySelectorAll(".order-filter-opt").forEach(btn => btn.addEventListener("click", () => {
+    ADMIN_ORDERS_FILTER = btn.dataset.filter;
+    renderAdminOrders();
+  }));
 
   body.querySelectorAll(".save-order-btn").forEach(btn => btn.addEventListener("click", async () => {
     const id = Number(btn.dataset.id);
@@ -1439,6 +1546,16 @@ async function renderAdminOrders() {
   body.querySelectorAll(".print-order-btn").forEach(btn => btn.addEventListener("click", () => {
     const order = orders.find(o => o.id === Number(btn.dataset.id));
     if (order) printOrderTicket(order);
+  }));
+
+  body.querySelectorAll(".mark-paid-btn").forEach(btn => btn.addEventListener("click", async () => {
+    const id = Number(btn.dataset.id);
+    const paid = btn.dataset.paid !== "1";
+    try {
+      await api("orders.php", { method: "POST", json: { action: "set_payment", id, paid } });
+      showToast(paid ? "Pedido marcado como pagado." : "Pedido marcado como no pagado.");
+      renderAdminOrders();
+    } catch (e) { showToast(e.message); }
   }));
 }
 

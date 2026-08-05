@@ -133,6 +133,8 @@ CREATE TABLE IF NOT EXISTS orders (
   shipping_snapshot TEXT,
   tracking_code VARCHAR(100) DEFAULT '',
   carrier VARCHAR(150) DEFAULT '',
+  payment_confirmed TINYINT(1) NOT NULL DEFAULT 0,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -421,6 +421,19 @@ footer.site-footer { background: var(--deep); color: rgba(255,255,255,0.82); mar
 }
 .order-group-header:first-child { margin-top: 0; }
 
+/* Tarjetas de resumen (Dashboard admin / Resumen cliente) */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.stat-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.stat-card .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+.stat-card .stat-label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+.stat-card.accent { border-color: var(--accent); }
+.stat-card.accent .stat-value { color: var(--accent); }
+.status-breakdown { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.status-breakdown-item { font-size: 0.76rem; color: var(--muted); background: var(--bg-alt); padding: 4px 10px; border-radius: 999px; }
+
+/* Filtro por pagar / realizados en la lista de pedidos */
+.order-filter { display: flex; gap: 8px; margin-bottom: 14px; }
+
 /* Cabecera de los popups de cuenta / admin */
 .account-header { text-align: center; margin-bottom: 18px; }
 .account-header-icon {
