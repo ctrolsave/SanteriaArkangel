@@ -917,7 +917,7 @@ function renderAccount(tab) {
   if (tab === "summary") {
     body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
     api("orders.php?scope=mine").then(orders => {
-      const porPagar = orders.filter(o => !o.paymentConfirmed);
+      const porPagar = orders.filter(o => !o.paymentConfirmed && o.status !== "Cancelado");
       const realizados = orders.filter(o => o.paymentConfirmed);
       const totalGastado = realizados.reduce((s, o) => s + o.total, 0);
       body.innerHTML = `
@@ -1115,7 +1115,7 @@ async function renderAdminDashboard() {
   body.innerHTML = `<p style="color:var(--muted); font-size:0.85rem;">Cargando…</p>`;
   const orders = await api("orders.php?scope=all");
 
-  const porPagar = orders.filter(o => !o.paymentConfirmed);
+  const porPagar = orders.filter(o => !o.paymentConfirmed && o.status !== "Cancelado");
   const realizados = orders.filter(o => o.paymentConfirmed);
   const totalFacturado = realizados.reduce((s, o) => s + o.total, 0);
 
@@ -1512,13 +1512,22 @@ async function renderAdminOrders() {
     <div class="order-filter">
       <button class="chip order-filter-opt ${ADMIN_ORDERS_FILTER === "pending" ? "active" : ""}" data-filter="pending">⏳ Por pagar</button>
       <button class="chip order-filter-opt ${ADMIN_ORDERS_FILTER === "paid" ? "active" : ""}" data-filter="paid">✅ Realizados</button>
+      <button class="chip order-filter-opt ${ADMIN_ORDERS_FILTER === "cancelled" ? "active" : ""}" data-filter="cancelled">❌ Cancelados</button>
     </div>
   `;
 
-  const orders = allOrders.filter(o => ADMIN_ORDERS_FILTER === "paid" ? o.paymentConfirmed : !o.paymentConfirmed);
+  // Un pedido cancelado no queda "por pagar" aunque nunca se haya cobrado:
+  // no hay nada que cobrar, así que tiene su propio filtro en vez de
+  // ensuciar la cola de pedidos pendientes de pago.
+  const orders = allOrders.filter(o => {
+    if (ADMIN_ORDERS_FILTER === "paid") return o.paymentConfirmed;
+    if (ADMIN_ORDERS_FILTER === "cancelled") return o.status === "Cancelado";
+    return !o.paymentConfirmed && o.status !== "Cancelado";
+  });
 
+  const emptyMsg = { pending: "No hay pedidos por pagar.", paid: "Todavía no hay pedidos realizados.", cancelled: "No hay pedidos cancelados." }[ADMIN_ORDERS_FILTER];
   if (orders.length === 0) {
-    body.innerHTML = filterBarHtml + `<p style="color:var(--muted); font-size:0.9rem;">${ADMIN_ORDERS_FILTER === "paid" ? "Todavía no hay pedidos realizados." : "No hay pedidos por pagar."}</p>`;
+    body.innerHTML = filterBarHtml + `<p style="color:var(--muted); font-size:0.9rem;">${emptyMsg}</p>`;
   } else {
     body.innerHTML = filterBarHtml + orders.map(o => {
       const phone = (o.shipping && o.shipping.phone) || "";
