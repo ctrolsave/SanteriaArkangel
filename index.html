@@ -33,6 +33,7 @@
   <a href="etica.html">Código de ética</a>
 </nav>
 
+<div id="store-view">
 <section class="hero" id="hero">
   <div class="hero-content">
     <div class="hero-categories" id="hero-categories"></div>
@@ -79,6 +80,21 @@
       <a href="historia.html" class="catalog-link">Ver más →</a>
       <a href="#" id="catalog-link" class="catalog-link hidden" style="background:var(--deep);">📄 Descargar catálogo</a>
     </div>
+  </div>
+</section>
+</div>
+
+<section class="page-view hidden" id="account-view">
+  <div class="page-view-wrap">
+    <a href="#" class="back-link" id="account-back-link">← Volver a la tienda</a>
+    <div id="account-content"></div>
+  </div>
+</section>
+
+<section class="page-view hidden" id="admin-view">
+  <div class="page-view-wrap page-view-wrap-wide">
+    <a href="#" class="back-link" id="admin-back-link">← Volver a la tienda</a>
+    <div id="admin-content"></div>
   </div>
 </section>
 
@@ -147,22 +163,6 @@
   <div class="modal">
     <button class="close-btn" data-close="modal-checkout">✕</button>
     <div class="content" id="checkout-content"></div>
-  </div>
-</div>
-
-<!-- Modal: cuenta (login/registro/perfil/pedidos) -->
-<div class="overlay hidden" id="modal-account">
-  <div class="modal">
-    <button class="close-btn" data-close="modal-account">✕</button>
-    <div class="content" id="account-content"></div>
-  </div>
-</div>
-
-<!-- Modal: administrador -->
-<div class="overlay hidden" id="modal-admin">
-  <div class="modal" style="max-width: 640px;">
-    <button class="close-btn" data-close="modal-admin">✕</button>
-    <div class="content" id="admin-content"></div>
   </div>
 </div>
 

@@ -160,12 +160,35 @@ function close(id) { document.getElementById(id).classList.add("hidden"); }
 document.addEventListener("click", (e) => {
   if (e.target.dataset.close) close(e.target.dataset.close);
   if (e.target.classList.contains("overlay") || e.target.classList.contains("drawer-overlay")) {
-    // El panel de administrador no se cierra solo al tocar afuera: tiene
-    // formularios largos y un click afuera sin querer borraba la edición.
-    // Se cierra únicamente con el botón ✕.
-    if (e.target.id === "modal-admin") return;
     e.target.classList.add("hidden");
   }
+});
+
+/* ---------------- Vistas de página completa (cuenta / admin) ---------------- */
+// Reemplazan a los popups para "Mi cuenta" y "Administrar": ocupan la página
+// completa (como historia.html o contacto.html) en vez de un modal angosto,
+// más cómodo para el dashboard, las tablas de productos y los pedidos.
+function showView(id) {
+  document.getElementById("store-view").classList.add("hidden");
+  document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
+  document.getElementById(id).classList.remove("hidden");
+  window.scrollTo({ top: 0 });
+}
+function showStore() {
+  document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
+  document.getElementById("store-view").classList.remove("hidden");
+  window.scrollTo({ top: 0 });
+}
+document.getElementById("account-back-link").addEventListener("click", (e) => { e.preventDefault(); showStore(); });
+document.getElementById("admin-back-link").addEventListener("click", (e) => { e.preventDefault(); showStore(); });
+
+// "Inicio" y "Productos" del nav ya apuntan a la página actual: si estamos
+// viendo Mi cuenta / Administrar, los volvemos a la tienda sin recargar.
+document.querySelectorAll('.site-nav a[href="index.html"], .site-nav a[href="#filters-bar"]').forEach(a => {
+  a.addEventListener("click", (e) => {
+    if (a.getAttribute("href") === "index.html") e.preventDefault();
+    showStore();
+  });
 });
 
 /* ============================================================
@@ -728,7 +751,7 @@ async function refreshCustomerSession() {
 function afterAuthSuccess() {
   if (CHECKOUT_RESUME) {
     CHECKOUT_RESUME = false;
-    close("modal-account");
+    showStore();
     openCheckout();
   } else {
     renderAccount("summary");
@@ -739,7 +762,7 @@ document.getElementById("btn-account").addEventListener("click", () => openAccou
 
 function openAccount(tab) {
   renderAccount(tab);
-  open("modal-account");
+  showView("account-view");
 }
 
 function renderAccount(tab) {
@@ -1015,7 +1038,7 @@ function renderAccount(tab) {
 /* ============================================================
    Panel de administrador
 ============================================================ */
-document.getElementById("btn-admin").addEventListener("click", () => { renderAdmin("login"); open("modal-admin"); });
+document.getElementById("btn-admin").addEventListener("click", () => { renderAdmin(STATE.isAdmin ? "dashboard" : "login"); showView("admin-view"); });
 
 async function refreshAdminSession() {
   try {
