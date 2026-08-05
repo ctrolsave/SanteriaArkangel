@@ -172,8 +172,10 @@ function showView(id) {
   document.getElementById("store-view").classList.add("hidden");
   document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
   document.getElementById(id).classList.remove("hidden");
-  // Los botones flotantes (WhatsApp, engranaje de admin) son atajos de la
-  // tienda: no tienen sentido arriba de la página de cuenta/admin.
+  // El nav de la tienda y los botones flotantes (WhatsApp, engranaje de
+  // admin) son atajos de la tienda: no tienen sentido arriba de la página
+  // de cuenta/admin.
+  document.querySelector(".site-nav").classList.add("hidden");
   document.getElementById("wa-float").classList.add("hidden");
   document.getElementById("btn-admin").classList.add("hidden");
   window.scrollTo({ top: 0 });
@@ -181,6 +183,7 @@ function showView(id) {
 function showStore() {
   document.querySelectorAll(".page-view").forEach(v => v.classList.add("hidden"));
   document.getElementById("store-view").classList.remove("hidden");
+  document.querySelector(".site-nav").classList.remove("hidden");
   document.getElementById("btn-admin").classList.remove("hidden");
   if (STATE.settings?.whatsapp) document.getElementById("wa-float").classList.remove("hidden");
   window.scrollTo({ top: 0 });
