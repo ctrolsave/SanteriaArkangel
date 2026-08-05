@@ -38,10 +38,11 @@ $hash = password_hash($pass, PASSWORD_DEFAULT);
 $stmt = $conn->prepare('INSERT INTO customers (name, email, password_hash, phone) VALUES (?,?,?,?)');
 $stmt->bind_param('ssss', $name, $email, $hash, $phone);
 $stmt->execute();
+$customerId = $conn->insert_id;
 
 $log = $conn->prepare('INSERT INTO registration_attempts (ip) VALUES (?)');
 $log->bind_param('s', $ip);
 $log->execute();
 
-$_SESSION['customer_id'] = $conn->insert_id;
+$_SESSION['customer_id'] = $customerId;
 respond(['ok' => true]);
