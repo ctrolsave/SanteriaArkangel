@@ -1390,25 +1390,40 @@ async function renderAdminOrders() {
     body.innerHTML = `<p style="color:var(--muted); font-size:0.9rem;">Todavía no hay pedidos.</p>`;
     return;
   }
-  body.innerHTML = orders.map(o => `
-    <div class="order-card">
-      <p style="margin:0 0 4px;">Pedido #${o.id} — ${escapeHtml(o.customerName)} (${escapeHtml(o.customerEmail)})</p>
-      <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${parseServerDate(o.createdAt).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
-      <p style="margin:0 0 6px; font-size:0.8rem; font-weight:600;">${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
-      ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
-      <p style="font-weight:600; margin:6px 0;">Total: ${fmt(o.total)}</p>
-      <select class="status-select" data-id="${o.id}" style="margin-bottom:8px;">
-        ${ORDER_STATUSES.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
-      </select>
-      ${o.deliveryMethod === "retiro" ? "" : `
-      <div class="tracking-fields" data-id="${o.id}" style="display:flex; gap:6px; margin-bottom:6px;">
-        <input type="text" class="tracking-code-input" data-id="${o.id}" placeholder="Código de seguimiento" value="${escapeHtml(o.trackingCode || "")}" style="flex:1;">
-        <input type="text" class="carrier-input" data-id="${o.id}" placeholder="Empresa de envío o link" value="${escapeHtml(o.carrier || "")}" style="flex:1;">
-      </div>`}
-      <button class="btn-secondary save-order-btn" data-id="${o.id}">Guardar cambios</button>
-      <button class="btn-secondary print-order-btn" data-id="${o.id}">🖨️ Imprimir ticket</button>
-    </div>
-  `).join("");
+  body.innerHTML = orders.map(o => {
+    const phone = (o.shipping && o.shipping.phone) || "";
+    return `
+    <details class="order-card">
+      <summary class="order-summary">
+        <div class="order-summary-top">
+          <span class="status ${statusClass(o.status)}">${escapeHtml(o.status)}</span>
+          <span class="order-summary-total">${fmt(o.total)}</span>
+        </div>
+        <div class="order-summary-bottom">
+          <span>Pedido #${o.id} — ${escapeHtml(o.customerName)}</span>
+          <span>${parseServerDate(o.createdAt).toLocaleDateString("es-AR")}</span>
+        </div>
+      </summary>
+      <div class="order-details">
+        <p style="margin:0 0 4px; color:var(--muted); font-size:0.8rem;">${escapeHtml(o.customerEmail)}</p>
+        ${phone ? `<p style="margin:0 0 8px; font-size:0.85rem;">📞 <a href="https://wa.me/${phone.replace(/\D/g, "")}" target="_blank" rel="noreferrer" style="color:var(--accent);">${escapeHtml(phone)}</a></p>` : ""}
+        <p style="margin:0 0 6px; color:var(--muted); font-size:0.8rem;">${parseServerDate(o.createdAt).toLocaleString("es-AR")} · ${escapeHtml(o.paymentMethod === "mercadopago" ? "Mercado Pago" : "Transferencia")}</p>
+        <p style="margin:0 0 8px; font-size:0.8rem; font-weight:600;">${o.deliveryMethod === "retiro" ? "🏬 Retiro en el local" : "🚚 Envío a domicilio"}</p>
+        ${o.items.map(it => `<p style="margin:2px 0; color:var(--muted);">${it.qty}x ${escapeHtml(it.name)} ${it.label ? `(${escapeHtml(it.label)})` : ""}</p>`).join("")}
+        <select class="status-select" data-id="${o.id}" style="margin:8px 0;">
+          ${ORDER_STATUSES.map(s => `<option ${s === o.status ? "selected" : ""}>${s}</option>`).join("")}
+        </select>
+        ${o.deliveryMethod === "retiro" ? "" : `
+        <div class="tracking-fields" data-id="${o.id}" style="display:flex; gap:6px; margin-bottom:6px;">
+          <input type="text" class="tracking-code-input" data-id="${o.id}" placeholder="Código de seguimiento" value="${escapeHtml(o.trackingCode || "")}" style="flex:1;">
+          <input type="text" class="carrier-input" data-id="${o.id}" placeholder="Empresa de envío o link" value="${escapeHtml(o.carrier || "")}" style="flex:1;">
+        </div>`}
+        <button class="btn-secondary save-order-btn" data-id="${o.id}">Guardar cambios</button>
+        <button class="btn-secondary print-order-btn" data-id="${o.id}">🖨️ Imprimir ticket</button>
+      </div>
+    </details>
+  `;
+  }).join("");
 
   body.querySelectorAll(".save-order-btn").forEach(btn => btn.addEventListener("click", async () => {
     const id = Number(btn.dataset.id);
