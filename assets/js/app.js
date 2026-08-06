@@ -1519,6 +1519,8 @@ function renderProductForm(product) {
       if (titleEl) titleEl.textContent = e.target.value || "Nuevo grupo";
     }));
     wrap.querySelectorAll(".remove-group").forEach(b => b.addEventListener("click", () => {
+      const g = form.variantGroups[Number(b.dataset.gi)];
+      if (!confirm(`¿Borrar el grupo "${g.name || "sin nombre"}" y todas sus opciones (${g.options.length})?`)) return;
       form.variantGroups.splice(Number(b.dataset.gi), 1); drawGroups();
     }));
     wrap.querySelectorAll(".add-option").forEach(b => b.addEventListener("click", () => {
@@ -1526,6 +1528,8 @@ function renderProductForm(product) {
       drawGroups();
     }));
     wrap.querySelectorAll(".remove-option").forEach(b => b.addEventListener("click", () => {
+      const opt = form.variantGroups[Number(b.dataset.gi)].options[Number(b.dataset.oi)];
+      if (!confirm(`¿Borrar la opción "${opt.value || "sin nombre"}"?`)) return;
       form.variantGroups[Number(b.dataset.gi)].options.splice(Number(b.dataset.oi), 1); drawGroups();
     }));
     wrap.querySelectorAll(".option-value").forEach(inp => inp.addEventListener("input", e => {
@@ -1966,6 +1970,7 @@ function renderAdminSettings() {
       </div>
     `).join("");
     listEl.querySelectorAll(".gallery-remove").forEach(b => b.addEventListener("click", async () => {
+      if (!confirm("¿Borrar esta foto del local?")) return;
       const fd = new FormData();
       fd.append("action", "remove");
       fd.append("path", b.dataset.path);
