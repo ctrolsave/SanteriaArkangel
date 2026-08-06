@@ -385,11 +385,11 @@ textarea { resize: vertical; }
 /* Pestaña chica centrada (ej: colapsar un grupo de variantes) */
 .center-tab-wrap { text-align: center; margin: 6px 0; }
 .center-tab {
-  display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; padding: 4px 14px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 4px 20px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer;
 }
 .center-tab:hover { color: var(--accent); border-color: var(--accent); }
-.center-tab .chevron { display: inline-block; line-height: 1; font-size: 0.9rem; transition: transform .15s ease; }
+.center-tab .chevron { display: inline-block; line-height: 1; font-size: 1.3rem; transition: transform .15s ease; }
 .center-tab .chevron.open { transform: rotate(180deg); }
 .upload-preview { width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .upload-preview.sm { width: 36px; height: 36px; }
