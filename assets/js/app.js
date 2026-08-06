@@ -1218,14 +1218,20 @@ function renderAdminProducts() {
   const body = document.getElementById("admin-tab-body");
   body.innerHTML = `
     <button class="btn-primary" id="new-product-btn" style="margin-bottom:12px;">+ Nuevo producto</button>
+    <p style="font-size:0.78rem; color:var(--muted); margin:0 0 10px;">Arrastrá ⠿ (o usá las flechas) para cambiar el orden — es el mismo orden en que se ven en la tienda.</p>
     <div id="admin-product-list"></div>
   `;
   document.getElementById("new-product-btn").addEventListener("click", () => renderProductForm(null));
   const list = document.getElementById("admin-product-list");
-  list.innerHTML = STATE.products.map(p => `
-    <div class="admin-row">
+  list.innerHTML = STATE.products.map((p, i) => `
+    <div class="admin-row reorder-row" data-id="${p.id}">
+      <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
       <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
       <div class="grow"><p>${escapeHtml(p.name)}</p><p class="muted">${escapeHtml(p.category)}</p></div>
+      <div class="reorder-arrows">
+        <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
+        <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+      </div>
       <button class="btn-secondary edit-p" data-id="${p.id}">Editar</button>
       <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
     </div>
@@ -1242,6 +1248,73 @@ function renderAdminProducts() {
     renderAdminProducts();
     renderGrid();
   }));
+  list.querySelectorAll(".move-up").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), -1)));
+  list.querySelectorAll(".move-down").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), 1)));
+  wireProductDragReorder(list);
+}
+
+// Reordena de a una posición: fallback simple y 100% táctil para cuando
+// arrastrar no es cómodo (listas largas, pantallas chicas).
+function moveProduct(id, delta) {
+  const idx = STATE.products.findIndex(p => p.id === id);
+  const newIdx = idx + delta;
+  if (idx < 0 || newIdx < 0 || newIdx >= STATE.products.length) return;
+  const arr = STATE.products;
+  [arr[idx], arr[newIdx]] = [arr[newIdx], arr[idx]];
+  renderAdminProducts();
+  saveProductOrder();
+}
+
+async function saveProductOrder() {
+  const fd = new FormData();
+  fd.append("action", "reorder");
+  fd.append("ids", JSON.stringify(STATE.products.map(p => p.id)));
+  try {
+    STATE.products = await api("products.php", { method: "POST", form: fd });
+  } catch (e) { showToast(e.message); }
+}
+
+// Drag & drop con Pointer Events (funciona con mouse y con dedo en el
+// celular, a diferencia del drag-and-drop nativo de HTML que no anda bien
+// en pantallas táctiles).
+function wireProductDragReorder(list) {
+  let dragEl = null;
+
+  function onPointerMove(e) {
+    if (!dragEl) return;
+    const y = e.clientY;
+    for (const row of list.children) {
+      if (row === dragEl) continue;
+      const rect = row.getBoundingClientRect();
+      const mid = rect.top + rect.height / 2;
+      const dragIsAfter = !!(row.compareDocumentPosition(dragEl) & Node.DOCUMENT_POSITION_FOLLOWING);
+      if (dragIsAfter && y < mid) { list.insertBefore(dragEl, row); break; }
+      if (!dragIsAfter && y > mid) { list.insertBefore(dragEl, row.nextSibling); break; }
+    }
+  }
+
+  function onPointerUp() {
+    if (!dragEl) return;
+    dragEl.classList.remove("dragging");
+    const newIds = [...list.children].map(row => Number(row.dataset.id));
+    dragEl = null;
+    document.removeEventListener("pointermove", onPointerMove);
+    document.removeEventListener("pointerup", onPointerUp);
+    const byId = new Map(STATE.products.map(p => [p.id, p]));
+    STATE.products = newIds.map(id => byId.get(id)).filter(Boolean);
+    renderAdminProducts();
+    saveProductOrder();
+  }
+
+  list.querySelectorAll(".drag-handle").forEach(handle => {
+    handle.addEventListener("pointerdown", (e) => {
+      dragEl = handle.closest(".reorder-row");
+      dragEl.classList.add("dragging");
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
+      e.preventDefault();
+    });
+  });
 }
 
 function renderProductForm(product) {

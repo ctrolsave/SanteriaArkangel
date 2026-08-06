@@ -57,7 +57,7 @@ function require_customer() {
 
 function fetch_all_products($conn) {
     $products = [];
-    $res = $conn->query('SELECT * FROM products ORDER BY created_at DESC');
+    $res = $conn->query('SELECT * FROM products ORDER BY sort_order DESC, created_at DESC');
     while ($p = $res->fetch_assoc()) {
         $pid = (int) $p['id'];
 

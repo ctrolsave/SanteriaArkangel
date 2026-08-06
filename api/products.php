@@ -23,6 +23,23 @@ if ($method === 'POST') {
         respond(fetch_all_products($conn));
     }
 
+    // Reordena productos (drag & drop en el panel): recibe los ids en el
+    // orden deseado (de arriba hacia abajo) y les asigna sort_order
+    // descendente. Los productos que no vengan en la lista (por ejemplo
+    // uno cargado por otro admin justo en ese momento) no se tocan.
+    if ($action === 'reorder') {
+        $ids = json_decode($_POST['ids'] ?? '[]', true) ?: [];
+        $ids = array_values(array_filter(array_map('intval', $ids), fn($v) => $v > 0));
+        $total = count($ids);
+        $stmt = $conn->prepare('UPDATE products SET sort_order = ? WHERE id = ?');
+        foreach ($ids as $i => $id) {
+            $order = $total - $i;
+            $stmt->bind_param('ii', $order, $id);
+            $stmt->execute();
+        }
+        respond(fetch_all_products($conn));
+    }
+
     // action === 'save' (crea si no viene id, edita si viene id)
     $id = (int) ($_POST['id'] ?? 0);
     $name = trim($_POST['name'] ?? '');
@@ -51,8 +68,11 @@ if ($method === 'POST') {
         $stmt->execute();
     } else {
         $img = $imagePath ?: '';
-        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock) VALUES (?,?,?,?,?,?,?)');
-        $stmt->bind_param('ssssidi', $name, $category, $description, $img, $isOffer, $offerPrice, $stock);
+        // El producto nuevo aparece primero (como hasta ahora): se le asigna
+        // el sort_order más alto de la tabla + 1.
+        $sortOrder = (int) ($conn->query('SELECT COALESCE(MAX(sort_order), 0) AS m FROM products')->fetch_assoc()['m']) + 1;
+        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock, sort_order) VALUES (?,?,?,?,?,?,?,?)');
+        $stmt->bind_param('ssssidii', $name, $category, $description, $img, $isOffer, $offerPrice, $stock, $sortOrder);
         $stmt->execute();
         $id = $conn->insert_id;
     }

@@ -357,6 +357,21 @@ textarea { resize: vertical; }
 .admin-row .grow p { margin: 0; }
 .admin-row .grow .muted { color: var(--muted); font-size: 0.75rem; }
 
+/* Reordenar productos (drag & drop + flechas) */
+.reorder-row.dragging { opacity: 0.6; box-shadow: 0 6px 16px rgba(18,50,74,0.18); }
+.drag-handle {
+  cursor: grab; touch-action: none; color: var(--muted); font-size: 1.1rem; padding: 4px 2px;
+  flex-shrink: 0; user-select: none; -webkit-user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.reorder-arrows { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+.reorder-btn {
+  width: 22px; height: 18px; line-height: 1; font-size: 0.65rem; padding: 0; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer;
+}
+.reorder-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.reorder-btn:disabled { opacity: 0.35; cursor: default; }
+
 .variant-group-box { padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; }
 .variant-option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-left: 8px; }
 .upload-preview { width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
