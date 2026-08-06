@@ -1274,46 +1274,56 @@ async function saveProductOrder() {
   } catch (e) { showToast(e.message); }
 }
 
-// Drag & drop con Pointer Events (funciona con mouse y con dedo en el
-// celular, a diferencia del drag-and-drop nativo de HTML que no anda bien
-// en pantallas táctiles).
-function wireProductDragReorder(list) {
+// Drag & drop genérico con Pointer Events (funciona con mouse y con dedo en
+// el celular, a diferencia del drag-and-drop nativo de HTML que no anda bien
+// en pantallas táctiles). Reordena los hijos de `container` visualmente;
+// al soltar llama a onDrop(container) para que quien lo use lea el nuevo
+// orden (vía los data-* de cada fila) y lo guarde donde corresponda.
+function makeDragReorderable(container, rowSelector, handleSelector, onDrop) {
   let dragEl = null;
 
   function onPointerMove(e) {
     if (!dragEl) return;
     const y = e.clientY;
-    for (const row of list.children) {
+    for (const row of container.children) {
       if (row === dragEl) continue;
       const rect = row.getBoundingClientRect();
       const mid = rect.top + rect.height / 2;
       const dragIsAfter = !!(row.compareDocumentPosition(dragEl) & Node.DOCUMENT_POSITION_FOLLOWING);
-      if (dragIsAfter && y < mid) { list.insertBefore(dragEl, row); break; }
-      if (!dragIsAfter && y > mid) { list.insertBefore(dragEl, row.nextSibling); break; }
+      if (dragIsAfter && y < mid) { container.insertBefore(dragEl, row); break; }
+      if (!dragIsAfter && y > mid) { container.insertBefore(dragEl, row.nextSibling); break; }
     }
   }
 
   function onPointerUp() {
     if (!dragEl) return;
     dragEl.classList.remove("dragging");
-    const newIds = [...list.children].map(row => Number(row.dataset.id));
     dragEl = null;
     document.removeEventListener("pointermove", onPointerMove);
     document.removeEventListener("pointerup", onPointerUp);
-    const byId = new Map(STATE.products.map(p => [p.id, p]));
-    STATE.products = newIds.map(id => byId.get(id)).filter(Boolean);
-    renderAdminProducts();
-    saveProductOrder();
+    onDrop(container);
   }
 
-  list.querySelectorAll(".drag-handle").forEach(handle => {
+  container.querySelectorAll(handleSelector).forEach(handle => {
     handle.addEventListener("pointerdown", (e) => {
-      dragEl = handle.closest(".reorder-row");
+      dragEl = handle.closest(rowSelector);
+      if (!dragEl) return;
       dragEl.classList.add("dragging");
       document.addEventListener("pointermove", onPointerMove);
       document.addEventListener("pointerup", onPointerUp);
       e.preventDefault();
+      e.stopPropagation();
     });
+  });
+}
+
+function wireProductDragReorder(list) {
+  makeDragReorderable(list, ".reorder-row", ".drag-handle", () => {
+    const newIds = [...list.children].map(row => Number(row.dataset.id));
+    const byId = new Map(STATE.products.map(p => [p.id, p]));
+    STATE.products = newIds.map(id => byId.get(id)).filter(Boolean);
+    renderAdminProducts();
+    saveProductOrder();
   });
 }
 
@@ -1323,8 +1333,13 @@ function renderProductForm(product) {
     id: null, name: "", category: CATEGORIES[0], description: "", image: "",
     isOffer: false, offerPrice: null, stock: 20, variantGroups: [], tiers: [{ minQty: 1, price: 0 }],
   };
-  // tempId para relacionar inputs de imagen de opciones nuevas
-  form.variantGroups.forEach(g => g.options.forEach(o => { if (!o.tempId) o.tempId = uid(); }));
+  // tempId para relacionar inputs de imagen de opciones nuevas. Los grupos
+  // que ya existían arrancan colapsados (menos lío visual con muchos
+  // grupos/opciones); uno recién agregado arranca abierto.
+  form.variantGroups.forEach(g => {
+    g._open = false;
+    g.options.forEach(o => { if (!o.tempId) o.tempId = uid(); });
+  });
   let mainImageFile = null;
   const optionFiles = {}; // tempId -> File
 
@@ -1388,7 +1403,7 @@ function renderProductForm(product) {
       document.getElementById("offer-price-field").style.display = form.isOffer ? "" : "none";
     });
     document.getElementById("add-group-btn").addEventListener("click", () => {
-      form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [] }] });
+      form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [] }], _open: true });
       drawGroups();
     });
     document.getElementById("add-tier-btn").addEventListener("click", () => {
@@ -1401,55 +1416,99 @@ function renderProductForm(product) {
     drawTiers();
   }
 
-  const openOptionTiers = new Set(); // qué opciones tienen abierto su editor de precio propio (solo UI, no se guarda)
+  const openOptionTiers = new Set(); // tempId de opciones con su editor de precio propio abierto (solo UI, no se guarda)
 
   function drawGroups() {
     const wrap = document.getElementById("groups-wrap");
     wrap.innerHTML = form.variantGroups.map((g, gi) => `
       <div class="variant-group-box" data-gi="${gi}">
-        <div style="display:flex; gap:8px; margin-bottom:8px;">
-          <input type="text" class="group-name" data-gi="${gi}" placeholder="Nombre (ej: Color)" value="${escapeHtml(g.name)}" style="flex:1;">
+        <div class="variant-group-header">
+          <span class="drag-handle group-drag-handle" title="Arrastrar para reordenar">⠿</span>
+          <button class="group-toggle" data-gi="${gi}">
+            <span class="chevron ${g._open ? "open" : ""}">⌄</span>
+            <span class="variant-group-title">${escapeHtml(g.name) || "Nuevo grupo"} <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
+          </button>
+          <div class="reorder-arrows">
+            <button class="reorder-btn move-group-up" data-gi="${gi}" ${gi === 0 ? "disabled" : ""} title="Subir">▲</button>
+            <button class="reorder-btn move-group-down" data-gi="${gi}" ${gi === form.variantGroups.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+          </div>
           <button class="btn-danger remove-group" data-gi="${gi}">🗑</button>
         </div>
-        ${g.options.map((o, oi) => {
-          const key = gi + "-" + oi;
-          const hasOwnPrice = o.tiers && o.tiers.length > 0;
-          const isOpen = openOptionTiers.has(key) || hasOwnPrice;
-          return `
-          <div class="variant-option-row" data-gi="${gi}" data-oi="${oi}">
-            <div class="upload-preview sm opt-preview" data-gi="${gi}" data-oi="${oi}">${o.image ? `<img src="${o.image}">` : "🕊️"}</div>
-            <input type="text" class="option-value" data-gi="${gi}" data-oi="${oi}" placeholder="Ej: Rojo" value="${escapeHtml(o.value)}" style="flex:1;">
-            <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
-            <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
-            <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
+        <div class="variant-group-body ${g._open ? "" : "hidden"}">
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input type="text" class="group-name" data-gi="${gi}" placeholder="Nombre (ej: Color)" value="${escapeHtml(g.name)}" style="flex:1;">
           </div>
-          <div style="padding-left:44px; margin-bottom:10px;">
-            <button class="btn-secondary toggle-own-price" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; padding:4px 10px;">
-              ${hasOwnPrice ? "💲 Precio propio (editar)" : "💲 Poner precio propio para esta opción"}
-            </button>
-            ${isOpen ? `
-              <div class="option-tiers-box" data-gi="${gi}" data-oi="${oi}" style="margin-top:8px; padding:8px; background:var(--bg-alt); border-radius:8px;">
-                ${(o.tiers && o.tiers.length ? o.tiers : [{ minQty: 1, price: 0 }]).map((t, ti) => `
-                  <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-                    <span style="font-size:0.72rem; color:var(--muted);">Desde</span>
-                    <input type="number" class="opt-tier-min" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}" value="${t.minQty}" style="width:64px;">
-                    <span style="font-size:0.72rem; color:var(--muted);">unid. →</span>
-                    <input type="number" class="opt-tier-price" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}" value="${t.price}" style="flex:1;">
-                    <button class="btn-danger remove-opt-tier" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}">✕</button>
+          <div class="options-list" data-gi="${gi}">
+            ${g.options.map((o, oi) => {
+              const hasOwnPrice = o.tiers && o.tiers.length > 0;
+              const isOpen = openOptionTiers.has(o.tempId) || hasOwnPrice;
+              return `
+              <div class="variant-option-block" data-gi="${gi}" data-oi="${oi}">
+                <div class="variant-option-row" data-gi="${gi}" data-oi="${oi}">
+                  <span class="drag-handle option-drag-handle" title="Arrastrar para reordenar">⠿</span>
+                  <div class="upload-preview sm opt-preview" data-gi="${gi}" data-oi="${oi}">${o.image ? `<img src="${o.image}">` : "🕊️"}</div>
+                  <input type="text" class="option-value" data-gi="${gi}" data-oi="${oi}" placeholder="Ej: Rojo" value="${escapeHtml(o.value)}" style="flex:1;">
+                  <div class="reorder-arrows">
+                    <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
+                    <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
                   </div>
-                `).join("")}
-                <div style="display:flex; gap:10px; margin-top:4px;">
-                  <button class="btn-secondary add-opt-tier" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem;">+ Agregar escalón</button>
-                  <button class="btn-secondary clear-opt-tiers" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; color:var(--danger);">Usar precio general del producto</button>
+                  <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
+                  <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
+                  <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
                 </div>
-              </div>
-            ` : ""}
-          </div>`;
-        }).join("")}
-        <button class="btn-secondary add-option" data-gi="${gi}">+ Agregar opción</button>
-        <p style="font-size:0.72rem; color:var(--muted); margin:6px 0 0;">Si una variante (ej: "7 colores" o "Combinado") vale distinto según la cantidad, ponele su propio precio. Si no, deja "sin precio propio" y usa el precio general de más abajo.</p>
+                <div style="padding-left:44px; margin-bottom:10px;">
+                  <button class="btn-secondary toggle-own-price" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; padding:4px 10px;">
+                    ${hasOwnPrice ? "💲 Precio propio (editar)" : "💲 Poner precio propio para esta opción"}
+                  </button>
+                  ${isOpen ? `
+                    <div class="option-tiers-box" data-gi="${gi}" data-oi="${oi}" style="margin-top:8px; padding:8px; background:var(--bg-alt); border-radius:8px;">
+                      ${(o.tiers && o.tiers.length ? o.tiers : [{ minQty: 1, price: 0 }]).map((t, ti) => `
+                        <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                          <span style="font-size:0.72rem; color:var(--muted);">Desde</span>
+                          <input type="number" class="opt-tier-min" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}" value="${t.minQty}" style="width:64px;">
+                          <span style="font-size:0.72rem; color:var(--muted);">unid. →</span>
+                          <input type="number" class="opt-tier-price" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}" value="${t.price}" style="flex:1;">
+                          <button class="btn-danger remove-opt-tier" data-gi="${gi}" data-oi="${oi}" data-ti="${ti}">✕</button>
+                        </div>
+                      `).join("")}
+                      <div style="display:flex; gap:10px; margin-top:4px;">
+                        <button class="btn-secondary add-opt-tier" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem;">+ Agregar escalón</button>
+                        <button class="btn-secondary clear-opt-tiers" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; color:var(--danger);">Usar precio general del producto</button>
+                      </div>
+                    </div>
+                  ` : ""}
+                </div>
+              </div>`;
+            }).join("")}
+          </div>
+          <button class="btn-secondary add-option" data-gi="${gi}">+ Agregar opción</button>
+          <p style="font-size:0.72rem; color:var(--muted); margin:6px 0 0;">Si una variante (ej: "7 colores" o "Combinado") vale distinto según la cantidad, ponele su propio precio. Si no, deja "sin precio propio" y usa el precio general de más abajo.</p>
+        </div>
       </div>
     `).join("");
+
+    wrap.querySelectorAll(".group-toggle").forEach(b => b.addEventListener("click", () => {
+      form.variantGroups[Number(b.dataset.gi)]._open = !form.variantGroups[Number(b.dataset.gi)]._open;
+      drawGroups();
+    }));
+    wrap.querySelectorAll(".move-group-up").forEach(b => b.addEventListener("click", () => moveGroup(Number(b.dataset.gi), -1)));
+    wrap.querySelectorAll(".move-group-down").forEach(b => b.addEventListener("click", () => moveGroup(Number(b.dataset.gi), 1)));
+    wrap.querySelectorAll(".move-opt-up").forEach(b => b.addEventListener("click", () => moveOption(Number(b.dataset.gi), Number(b.dataset.oi), -1)));
+    wrap.querySelectorAll(".move-opt-down").forEach(b => b.addEventListener("click", () => moveOption(Number(b.dataset.gi), Number(b.dataset.oi), 1)));
+    makeDragReorderable(wrap, ".variant-group-box", ".group-drag-handle", () => {
+      const newGis = [...wrap.children].map(el => Number(el.dataset.gi));
+      form.variantGroups = newGis.map(i => form.variantGroups[i]);
+      drawGroups();
+    });
+    wrap.querySelectorAll(".options-list").forEach(listEl => {
+      const gi = Number(listEl.dataset.gi);
+      makeDragReorderable(listEl, ".variant-option-block", ".option-drag-handle", () => {
+        const newOis = [...listEl.children].map(el => Number(el.dataset.oi));
+        const g = form.variantGroups[gi];
+        g.options = newOis.map(i => g.options[i]);
+        drawGroups();
+      });
+    });
 
     wrap.querySelectorAll(".group-name").forEach(inp => inp.addEventListener("input", e => {
       form.variantGroups[e.target.dataset.gi].name = e.target.value;
@@ -1468,12 +1527,11 @@ function renderProductForm(product) {
       form.variantGroups[e.target.dataset.gi].options[e.target.dataset.oi].value = e.target.value;
     }));
     wrap.querySelectorAll(".toggle-own-price").forEach(b => b.addEventListener("click", () => {
-      const key = b.dataset.gi + "-" + b.dataset.oi;
       const opt = form.variantGroups[Number(b.dataset.gi)].options[Number(b.dataset.oi)];
-      if (openOptionTiers.has(key)) {
-        openOptionTiers.delete(key);
+      if (openOptionTiers.has(opt.tempId)) {
+        openOptionTiers.delete(opt.tempId);
       } else {
-        openOptionTiers.add(key);
+        openOptionTiers.add(opt.tempId);
         if (!opt.tiers || !opt.tiers.length) opt.tiers = [{ minQty: 1, price: 0 }];
       }
       drawGroups();
@@ -1489,10 +1547,9 @@ function renderProductForm(product) {
       drawGroups();
     }));
     wrap.querySelectorAll(".clear-opt-tiers").forEach(b => b.addEventListener("click", () => {
-      const key = b.dataset.gi + "-" + b.dataset.oi;
       const opt = form.variantGroups[Number(b.dataset.gi)].options[Number(b.dataset.oi)];
       opt.tiers = [];
-      openOptionTiers.delete(key);
+      openOptionTiers.delete(opt.tempId);
       drawGroups();
     }));
     wrap.querySelectorAll(".opt-tier-min").forEach(inp => inp.addEventListener("input", e => {
@@ -1511,6 +1568,23 @@ function renderProductForm(product) {
       optionFiles[opt.tempId] = file;
       wrap.querySelector(`.opt-preview[data-gi="${e.target.dataset.gi}"][data-oi="${e.target.dataset.oi}"]`).innerHTML = `<img src="${URL.createObjectURL(file)}">`;
     }));
+  }
+
+  // Reordenar de a una posición con flechas: alternativa siempre confiable
+  // al arrastre, sobre todo en pantallas chicas o con muchos grupos/opciones.
+  function moveGroup(gi, delta) {
+    const newGi = gi + delta;
+    if (newGi < 0 || newGi >= form.variantGroups.length) return;
+    const arr = form.variantGroups;
+    [arr[gi], arr[newGi]] = [arr[newGi], arr[gi]];
+    drawGroups();
+  }
+  function moveOption(gi, oi, delta) {
+    const arr = form.variantGroups[gi].options;
+    const newOi = oi + delta;
+    if (newOi < 0 || newOi >= arr.length) return;
+    [arr[oi], arr[newOi]] = [arr[newOi], arr[oi]];
+    drawGroups();
   }
 
   function drawTiers() {
