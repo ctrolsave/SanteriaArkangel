@@ -10,7 +10,13 @@ if ($method === 'GET') {
     if ($productId <= 0) {
         respond(['error' => 'Falta el producto.'], 400);
     }
-    $stmt = $conn->prepare('SELECT type, delta, resulting_stock, note, created_at FROM stock_movements WHERE product_id = ? ORDER BY created_at DESC, id DESC LIMIT 100');
+    $stmt = $conn->prepare(
+        'SELECT sm.type, sm.delta, sm.resulting_stock, sm.note, sm.created_at, vo.value AS option_value
+         FROM stock_movements sm
+         LEFT JOIN variant_options vo ON vo.id = sm.option_id
+         WHERE sm.product_id = ?
+         ORDER BY sm.created_at DESC, sm.id DESC LIMIT 100'
+    );
     $stmt->bind_param('i', $productId);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -21,6 +27,7 @@ if ($method === 'GET') {
             'delta' => (int) $row['delta'],
             'resultingStock' => (int) $row['resulting_stock'],
             'note' => $row['note'],
+            'optionValue' => $row['option_value'],
             'createdAt' => $row['created_at'],
         ];
     }
@@ -31,6 +38,7 @@ if ($method === 'POST') {
     require_csrf();
     $data = json_input();
     $productId = (int) ($data['productId'] ?? 0);
+    $optionId = !empty($data['optionId']) ? (int) $data['optionId'] : null;
     $qty = (int) ($data['qty'] ?? 0);
     $note = trim($data['note'] ?? '');
     // Por defecto el signo decide (positivo = ingreso, negativo = ajuste),
@@ -50,7 +58,21 @@ if ($method === 'POST') {
         respond(['error' => 'El producto no existe.'], 404);
     }
 
-    log_stock_movement($conn, $productId, $type, $qty, $note);
+    if ($optionId) {
+        // Verificamos que la opción sea realmente de este producto, para
+        // que nadie pueda tocar el stock de otro producto pasando un
+        // optionId ajeno.
+        $optCheck = $conn->prepare(
+            'SELECT vo.id FROM variant_options vo JOIN variant_groups vg ON vo.group_id = vg.id WHERE vo.id = ? AND vg.product_id = ?'
+        );
+        $optCheck->bind_param('ii', $optionId, $productId);
+        $optCheck->execute();
+        if (!$optCheck->get_result()->fetch_assoc()) {
+            respond(['error' => 'Esa opción no pertenece a este producto.'], 400);
+        }
+    }
+
+    log_stock_movement($conn, $productId, $type, $qty, $note, $optionId);
     respond(fetch_all_products($conn));
 }
 

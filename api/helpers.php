@@ -81,15 +81,33 @@ function fetch_all_products($conn) {
         while ($g = $gr->fetch_assoc()) {
             $gid = (int) $g['id'];
             $options = [];
-            $oq = $conn->prepare('SELECT id, value, image, tiers_json FROM variant_options WHERE group_id = ? ORDER BY sort_order ASC, id ASC');
+            $oq = $conn->prepare('SELECT id, value, image, tiers_json, stock FROM variant_options WHERE group_id = ? ORDER BY sort_order ASC, id ASC');
             $oq->bind_param('i', $gid);
             $oq->execute();
             $or_ = $oq->get_result();
             while ($o = $or_->fetch_assoc()) {
                 $optTiers = json_decode($o['tiers_json'] ?? '[]', true);
-                $options[] = ['id' => (int) $o['id'], 'value' => $o['value'], 'image' => $o['image'], 'tiers' => is_array($optTiers) ? $optTiers : []];
+                $options[] = ['id' => (int) $o['id'], 'value' => $o['value'], 'image' => $o['image'], 'tiers' => is_array($optTiers) ? $optTiers : [], 'stock' => (int) $o['stock']];
             }
             $groups[] = ['id' => $gid, 'name' => $g['name'], 'options' => $options];
+        }
+
+        // Si el producto tiene variantes, cada opción tiene su propio stock
+        // (ej: "vela rosa" y "vela azul" no comparten pool) y el producto en
+        // general está disponible mientras cada grupo tenga al menos una
+        // opción con stock — el número de products.stock deja de usarse acá.
+        // Si no tiene variantes, se sigue usando el stock del producto.
+        if (!empty($groups)) {
+            $inStock = true;
+            foreach ($groups as $g) {
+                $groupHasStock = false;
+                foreach ($g['options'] as $o) {
+                    if ($o['stock'] > 0) { $groupHasStock = true; break; }
+                }
+                if (!$groupHasStock) { $inStock = false; break; }
+            }
+        } else {
+            $inStock = ((int) $p['stock']) > 0;
         }
 
         $products[] = [
@@ -101,7 +119,7 @@ function fetch_all_products($conn) {
             'isOffer' => (bool) $p['is_offer'],
             'offerPrice' => $p['offer_price'] !== null ? (float) $p['offer_price'] : null,
             'createdAt' => $p['created_at'],
-            'inStock' => ((int) $p['stock']) > 0,
+            'inStock' => $inStock,
             'stock' => (int) $p['stock'],
             'tiers' => $tiers,
             'variantGroups' => $groups,
@@ -112,23 +130,50 @@ function fetch_all_products($conn) {
 
 /**
  * Registra un movimiento de stock (ingreso, venta o ajuste manual) y aplica
- * el delta a products.stock en la misma operación, para que el número de
- * stock y el historial nunca queden desincronizados entre sí.
+ * el delta en la misma operación, para que el número de stock y el
+ * historial nunca queden desincronizados entre sí. Si se pasa $optionId,
+ * el stock que cambia es el de esa opción puntual (ej: "Mod1 recta") en
+ * vez del stock general del producto.
  */
-function log_stock_movement($conn, $productId, $type, $delta, $note = '') {
+function log_stock_movement($conn, $productId, $type, $delta, $note = '', $optionId = null) {
     if ($delta === 0) return;
-    $stmt = $conn->prepare('UPDATE products SET stock = GREATEST(0, stock + ?) WHERE id = ?');
-    $stmt->bind_param('ii', $delta, $productId);
-    $stmt->execute();
-
-    $row = $conn->prepare('SELECT stock FROM products WHERE id = ?');
-    $row->bind_param('i', $productId);
-    $row->execute();
+    if ($optionId) {
+        $stmt = $conn->prepare('UPDATE variant_options SET stock = GREATEST(0, stock + ?) WHERE id = ?');
+        $stmt->bind_param('ii', $delta, $optionId);
+        $stmt->execute();
+        $row = $conn->prepare('SELECT stock FROM variant_options WHERE id = ?');
+        $row->bind_param('i', $optionId);
+        $row->execute();
+    } else {
+        $stmt = $conn->prepare('UPDATE products SET stock = GREATEST(0, stock + ?) WHERE id = ?');
+        $stmt->bind_param('ii', $delta, $productId);
+        $stmt->execute();
+        $row = $conn->prepare('SELECT stock FROM products WHERE id = ?');
+        $row->bind_param('i', $productId);
+        $row->execute();
+    }
     $resulting = (int) ($row->get_result()->fetch_assoc()['stock'] ?? 0);
 
-    $ins = $conn->prepare('INSERT INTO stock_movements (product_id, type, delta, resulting_stock, note) VALUES (?,?,?,?,?)');
-    $ins->bind_param('isiis', $productId, $type, $delta, $resulting, $note);
+    $ins = $conn->prepare('INSERT INTO stock_movements (product_id, option_id, type, delta, resulting_stock, note) VALUES (?,?,?,?,?,?)');
+    $ins->bind_param('iisiis', $productId, $optionId, $type, $delta, $resulting, $note);
     $ins->execute();
+}
+
+/**
+ * Devuelve las opciones elegidas (una por cada grupo de variantes que
+ * tenga selección), para poder revisar/descontar el stock de cada una al
+ * confirmar una venta. Mismo criterio de matching que resolve_tiers_for_selection.
+ */
+function resolve_selected_options($product, $selection) {
+    $result = [];
+    foreach ($product['variantGroups'] as $g) {
+        if (!isset($selection[$g['id']])) continue;
+        $optId = $selection[$g['id']];
+        foreach ($g['options'] as $o) {
+            if ($o['id'] == $optId) { $result[] = $o; break; }
+        }
+    }
+    return $result;
 }
 
 /**

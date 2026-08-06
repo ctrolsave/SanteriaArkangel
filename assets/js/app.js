@@ -408,19 +408,40 @@ function optionsLabel(product, selection) {
     .filter(Boolean).join(" · ");
 }
 
+// Cada opción tiene su propio stock (ej: "vela rosa" y "vela azul" no
+// comparten pool). Lo máximo que se puede comprar con la selección actual
+// es lo mínimo entre el stock de cada opción elegida (una por grupo).
+function selectionMaxStock(product, selection) {
+  if (!product.variantGroups || product.variantGroups.length === 0) {
+    return (typeof product.stock === "number") ? product.stock : Infinity;
+  }
+  let min = Infinity;
+  for (const g of product.variantGroups) {
+    const opt = g.options.find(o => o.id === selection[g.id]);
+    if (opt) min = Math.min(min, opt.stock);
+  }
+  return min === Infinity ? 0 : min;
+}
+
 function openProduct(id) {
   const p = STATE.products.find(x => x.id === id);
   if (!p) return;
   PRODUCT_SELECTION = {};
-  (p.variantGroups || []).forEach(g => { if (g.options[0]) PRODUCT_SELECTION[g.id] = g.options[0].id; });
+  // Arranca en la primera opción CON stock de cada grupo (si todas están
+  // agotadas, arranca en la primera igual, para poder mostrarlo agotado).
+  (p.variantGroups || []).forEach(g => {
+    const firstAvailable = g.options.find(o => o.stock > 0) || g.options[0];
+    if (firstAvailable) PRODUCT_SELECTION[g.id] = firstAvailable.id;
+  });
   renderProductModal(p, 1);
   open("modal-product");
 }
 
 function renderProductModal(p, qty) {
-  const maxQty = (typeof p.stock === "number") ? p.stock : Infinity;
+  const maxQty = selectionMaxStock(p, PRODUCT_SELECTION);
+  const selectionOut = maxQty <= 0;
   let hitLimit = false;
-  if (qty > maxQty) { qty = maxQty; hitLimit = true; }
+  if (!selectionOut && qty > maxQty) { qty = maxQty; hitLimit = true; }
   if (qty < 1) qty = 1;
 
   const activeTiers = resolveTiersForSelection(p, PRODUCT_SELECTION);
@@ -431,7 +452,7 @@ function renderProductModal(p, qty) {
       <label class="field-label">${escapeHtml(g.name)}</label>
       <div style="display:flex; flex-wrap:wrap; gap:8px;">
         ${g.options.map(o => `
-          <button class="chip variant-opt ${PRODUCT_SELECTION[g.id] === o.id ? "active" : ""}" data-group="${g.id}" data-option="${o.id}">${escapeHtml(o.value)}</button>
+          <button class="chip variant-opt ${PRODUCT_SELECTION[g.id] === o.id ? "active" : ""} ${o.stock === 0 ? "variant-opt-oos" : ""}" data-group="${g.id}" data-option="${o.id}" ${o.stock === 0 ? "disabled" : ""}>${escapeHtml(o.value)}${o.stock === 0 ? " (agotado)" : ""}</button>
         `).join("")}
       </div>
     </div>`).join("");
@@ -453,23 +474,29 @@ function renderProductModal(p, qty) {
     <h3 class="display" style="font-size:1.5rem; margin: 4px 0;">${escapeHtml(p.name)}</h3>
     <p style="color:var(--muted); font-size:0.9rem;">${escapeHtml(p.description || "")}</p>
     ${groupsHtml}
-    <div class="field">
-      <label class="field-label">Cantidad</label>
-      <div class="qty-control">
-        <button class="qty-btn" id="qty-minus">−</button>
-        <input type="number" min="1" max="${maxQty === Infinity ? "" : maxQty}" id="qty-value" value="${qty}" style="width:56px; text-align:center; padding:6px 4px;">
-        <button class="qty-btn" id="qty-plus" ${qty >= maxQty ? "disabled style=\"opacity:0.4;\"" : ""}>+</button>
+    ${selectionOut ? `
+      <p style="text-align:center; padding:10px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--muted); font-size:0.85rem;">Esa combinación está agotada — probá otra opción.</p>
+    ` : `
+      <div class="field">
+        <label class="field-label">Cantidad</label>
+        <div class="qty-control">
+          <button class="qty-btn" id="qty-minus">−</button>
+          <input type="number" min="1" max="${maxQty === Infinity ? "" : maxQty}" id="qty-value" value="${qty}" style="width:56px; text-align:center; padding:6px 4px;">
+          <button class="qty-btn" id="qty-plus" ${qty >= maxQty ? "disabled style=\"opacity:0.4;\"" : ""}>+</button>
+        </div>
+        ${limitWarning}
+        ${tiersHtml}
       </div>
-      ${limitWarning}
-      ${tiersHtml}
-    </div>
+    `}
     <div style="display:flex; justify-content:space-between; align-items:center; margin: 14px 0;">
       <span style="color:var(--muted);">Subtotal</span>
       <span class="display" style="font-size:1.3rem; color:var(--accent);" id="product-subtotal">${fmt(price * qty)}</span>
     </div>
     ${p.inStock === false
       ? `<div style="text-align:center; padding:12px; border-radius:10px; background:var(--panel); border:1px solid var(--line); color:var(--muted); font-weight:600;">Agotado por el momento</div>`
-      : `<button class="btn-primary" id="add-to-cart-btn">Agregar al carrito</button>`}
+      : selectionOut
+        ? ""
+        : `<button class="btn-primary" id="add-to-cart-btn">Agregar al carrito</button>`}
   `;
 
   document.querySelectorAll(".variant-opt").forEach(btn => {
@@ -478,14 +505,14 @@ function renderProductModal(p, qty) {
       renderProductModal(p, qty);
     });
   });
-  document.getElementById("qty-minus").addEventListener("click", () => renderProductModal(p, Math.max(1, qty - 1)));
-  document.getElementById("qty-plus").addEventListener("click", () => renderProductModal(p, qty + 1));
+  document.getElementById("qty-minus")?.addEventListener("click", () => renderProductModal(p, Math.max(1, qty - 1)));
+  document.getElementById("qty-plus")?.addEventListener("click", () => renderProductModal(p, qty + 1));
   const qtyInput = document.getElementById("qty-value");
-  qtyInput.addEventListener("change", () => {
+  qtyInput?.addEventListener("change", () => {
     const val = Math.max(1, parseInt(qtyInput.value, 10) || 1);
     renderProductModal(p, val);
   });
-  qtyInput.addEventListener("keydown", (e) => {
+  qtyInput?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") qtyInput.blur();
   });
   document.getElementById("add-to-cart-btn")?.addEventListener("click", () => {
@@ -568,7 +595,7 @@ function changeLineQty(lineId, delta) {
   const line = STATE.cart.find(l => l.lineId === lineId);
   if (!line) return;
   const product = STATE.products.find(p => p.id === line.productId);
-  const maxQty = (product && typeof product.stock === "number") ? product.stock : Infinity;
+  const maxQty = product ? selectionMaxStock(product, line.selection || {}) : Infinity;
   let newQty = Math.max(1, line.qty + delta);
   if (newQty > maxQty) {
     newQty = maxQty;
@@ -1465,7 +1492,7 @@ function renderProductForm(product) {
       document.getElementById("offer-price-field").style.display = form.isOffer ? "" : "none";
     });
     document.getElementById("add-group-btn").addEventListener("click", () => {
-      form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [] }], _open: true });
+      form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [], stock: 0 }], _open: true });
       drawGroups();
     });
     document.getElementById("add-tier-btn").addEventListener("click", () => {
@@ -1488,7 +1515,7 @@ function renderProductForm(product) {
         const typeLabel = { ingreso: "📥 Ingreso", venta: "🛒 Venta", ajuste: "✏️ Ajuste" };
         box.innerHTML = movements.map(m => `
           <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); font-size:0.78rem;">
-            <span>${typeLabel[m.type] || m.type}${m.note ? ` — ${escapeHtml(m.note)}` : ""}</span>
+            <span>${typeLabel[m.type] || m.type}${m.optionValue ? ` (${escapeHtml(m.optionValue)})` : ""}${m.note ? ` — ${escapeHtml(m.note)}` : ""}</span>
             <span style="text-align:right; white-space:nowrap;">
               <strong style="color:${m.delta > 0 ? "#1a6b3f" : "var(--danger)"};">${m.delta > 0 ? "+" : ""}${m.delta}</strong>
               <span style="color:var(--muted);"> → ${m.resultingStock}</span><br>
@@ -1539,6 +1566,13 @@ function renderProductForm(product) {
                   <span class="drag-handle option-drag-handle" title="Arrastrar para reordenar">⠿</span>
                   <div class="upload-preview sm opt-preview" data-gi="${gi}" data-oi="${oi}">${o.image ? `<img src="${o.image}">` : "🕊️"}</div>
                   <input type="text" class="option-value" data-gi="${gi}" data-oi="${oi}" placeholder="Ej: Rojo" value="${escapeHtml(o.value)}" style="flex:1;">
+                  <div class="stock-inline-wrap">
+                    <label class="stock-inline-label">Stock</label>
+                    ${o.id
+                      ? `<input type="number" class="stock-inline-input option-stock-existing ${o.stock === 0 ? "stock-zero" : ""}" data-option-id="${o.id}" value="${o.stock || 0}" min="0">`
+                      : `<input type="number" class="stock-inline-input option-stock-new" data-gi="${gi}" data-oi="${oi}" value="${o.stock || 0}" min="0" title="Stock inicial: se guarda al tocar &quot;Guardar producto&quot;">`
+                    }
+                  </div>
                   <div class="reorder-arrows">
                     <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
                     <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
@@ -1613,7 +1647,7 @@ function renderProductForm(product) {
       form.variantGroups.splice(Number(b.dataset.gi), 1); drawGroups();
     }));
     wrap.querySelectorAll(".add-option").forEach(b => b.addEventListener("click", () => {
-      form.variantGroups[Number(b.dataset.gi)].options.push({ tempId: uid(), value: "", image: "", tiers: [] });
+      form.variantGroups[Number(b.dataset.gi)].options.push({ tempId: uid(), value: "", image: "", tiers: [], stock: 0 });
       drawGroups();
     }));
     wrap.querySelectorAll(".remove-option").forEach(b => b.addEventListener("click", () => {
@@ -1623,6 +1657,36 @@ function renderProductForm(product) {
     }));
     wrap.querySelectorAll(".option-value").forEach(inp => inp.addEventListener("input", e => {
       form.variantGroups[e.target.dataset.gi].options[e.target.dataset.oi].value = e.target.value;
+    }));
+    // Opción nueva (todavía sin id): el stock que se cargue acá es el
+    // inicial, viaja con el resto del producto y se guarda recién al
+    // tocar "Guardar producto".
+    wrap.querySelectorAll(".option-stock-new").forEach(inp => inp.addEventListener("input", e => {
+      form.variantGroups[e.target.dataset.gi].options[e.target.dataset.oi].stock = Math.max(0, parseInt(e.target.value, 10) || 0);
+    }));
+    // Opción que ya existe: cambiar el stock acá se guarda al toque (queda
+    // en el historial como "ajuste"), igual que en la lista de Productos.
+    wrap.querySelectorAll(".option-stock-existing").forEach(inp => inp.addEventListener("change", async () => {
+      const optionId = Number(inp.dataset.optionId);
+      let option = null;
+      for (const g of form.variantGroups) {
+        const found = g.options.find(o => o.id === optionId);
+        if (found) { option = found; break; }
+      }
+      if (!option) return;
+      const newStock = Math.max(0, parseInt(inp.value, 10) || 0);
+      const delta = newStock - (option.stock || 0);
+      if (delta === 0) { inp.value = newStock; return; }
+      try {
+        STATE.products = await api("stock.php", { method: "POST", json: { productId: form.id, optionId, qty: delta, type: "ajuste", note: "Editado en el formulario de variantes" } });
+        option.stock = newStock;
+        inp.classList.toggle("stock-zero", newStock === 0);
+        showToast("Stock actualizado.");
+        renderGrid();
+      } catch (e) {
+        showToast(e.message);
+        inp.value = option.stock || 0;
+      }
     }));
     wrap.querySelectorAll(".toggle-own-price").forEach(b => b.addEventListener("click", () => {
       const opt = form.variantGroups[Number(b.dataset.gi)].options[Number(b.dataset.oi)];
@@ -1723,7 +1787,7 @@ function renderProductForm(product) {
       .filter(g => g.name.trim())
       .map(g => ({
         name: g.name,
-        options: g.options.filter(o => o.value.trim()).map(o => ({ value: o.value, tempId: o.tempId, existingImage: o.image || "", tiers: (o.tiers && o.tiers.length ? o.tiers : []) })),
+        options: g.options.filter(o => o.value.trim()).map(o => ({ id: o.id || null, value: o.value, tempId: o.tempId, existingImage: o.image || "", tiers: (o.tiers && o.tiers.length ? o.tiers : []), stock: o.stock || 0 })),
       }));
     fd.append("groups_json", JSON.stringify(groupsPayload));
     fd.append("tiers_json", JSON.stringify(form.tiers));

@@ -213,6 +213,8 @@ header.site-header {
 }
 .chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
 .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.variant-opt-oos { opacity: 0.5; text-decoration: line-through; cursor: not-allowed; }
+.variant-opt-oos:hover { border-color: var(--line); color: var(--muted); }
 
 /* Grid de productos */
 .grid {

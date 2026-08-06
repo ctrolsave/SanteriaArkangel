@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS variant_options (
   image VARCHAR(255) DEFAULT '',
   tiers_json TEXT,
   sort_order INT DEFAULT 0,
+  stock INT NOT NULL DEFAULT 0,
   FOREIGN KEY (group_id) REFERENCES variant_groups(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -190,13 +191,18 @@ CREATE TABLE IF NOT EXISTS password_resets (
 -- Historial de stock por producto: cada vez que entra mercadería, se
 -- vende, o se corrige el número a mano, queda una fila con cuánto cambió
 -- y cuánto quedó, para poder ver "entraron 30, se vendieron 12, quedan 18".
+-- option_id: si el movimiento es de una opción puntual (ej. "Mod1 recta")
+-- en vez del producto en general. Queda NULL (no se borra el historial)
+-- si esa opción se termina borrando más adelante.
 CREATE TABLE IF NOT EXISTS stock_movements (
   id INT AUTO_INCREMENT PRIMARY KEY,
   product_id INT NOT NULL,
+  option_id INT NULL,
   type VARCHAR(20) NOT NULL,
   delta INT NOT NULL,
   resulting_stock INT NOT NULL,
   note VARCHAR(255) DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+  FOREIGN KEY (option_id) REFERENCES variant_options(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

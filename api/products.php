@@ -48,6 +48,11 @@ if ($method === 'POST') {
     $isOffer = ($_POST['is_offer'] ?? '0') === '1' ? 1 : 0;
     $offerPrice = ($isOffer && isset($_POST['offer_price']) && $_POST['offer_price'] !== '') ? (float) $_POST['offer_price'] : null;
     $stock = max(0, (int) ($_POST['stock'] ?? 0));
+    $groups = json_decode($_POST['groups_json'] ?? '[]', true) ?: [];
+    // Si el producto tiene variantes, el stock se maneja por opción (más
+    // abajo) y el número general del producto queda sin uso: no tiene
+    // sentido anotarlo en el historial.
+    $hasVariants = !empty(array_filter($groups, fn($g) => trim($g['name'] ?? '') !== ''));
 
     if ($name === '') {
         respond(['error' => 'El producto necesita un nombre.'], 400);
@@ -75,7 +80,7 @@ if ($method === 'POST') {
         }
         $stmt->execute();
 
-        if ($stock !== $oldStock) {
+        if (!$hasVariants && $stock !== $oldStock) {
             log_stock_movement($conn, $id, 'ajuste', $stock - $oldStock, 'Editado desde el formulario del producto');
         }
     } else {
@@ -89,7 +94,7 @@ if ($method === 'POST') {
         $stmt->execute();
         $id = $conn->insert_id;
 
-        if ($stock > 0) {
+        if (!$hasVariants && $stock > 0) {
             log_stock_movement($conn, $id, 'ingreso', $stock, 'Stock inicial');
         }
     }
@@ -107,7 +112,6 @@ if ($method === 'POST') {
 
     // Grupos de variantes y opciones: se reemplazan todos en cada guardado,
     // reutilizando la imagen existente de cada opción si no se subió una nueva.
-    $groups = json_decode($_POST['groups_json'] ?? '[]', true) ?: [];
     $conn->query('DELETE FROM variant_groups WHERE product_id = ' . (int) $id);
 
     foreach ($groups as $gi => $g) {
@@ -126,9 +130,22 @@ if ($method === 'POST') {
             $finalImage = $uploadedPath ?: ($opt['existingImage'] ?? '');
             $optTiers = $opt['tiers'] ?? [];
             $optTiersJson = (is_array($optTiers) && count($optTiers) > 0) ? json_encode($optTiers) : null;
-            $stmt = $conn->prepare('INSERT INTO variant_options (group_id, value, image, tiers_json, sort_order) VALUES (?,?,?,?,?)');
-            $stmt->bind_param('isssi', $groupId, $value, $finalImage, $optTiersJson, $oi);
+            // El stock de una opción que ya existía se edita aparte, al
+            // toque (ver api/stock.php); acá se vuelve a guardar tal cual
+            // sin pasar por log_stock_movement (si no, quedaría duplicado).
+            // Si la opción es nueva en este guardado, el número que traiga
+            // es su stock inicial y sí queda anotado como "ingreso".
+            $wasExisting = !empty($opt['id']);
+            $optStock = max(0, (int) ($opt['stock'] ?? 0));
+            $stmt = $conn->prepare('INSERT INTO variant_options (group_id, value, image, tiers_json, sort_order, stock) VALUES (?,?,?,?,?,?)');
+            $insertStock = $wasExisting ? $optStock : 0;
+            $stmt->bind_param('isssii', $groupId, $value, $finalImage, $optTiersJson, $oi, $insertStock);
             $stmt->execute();
+            $newOptionId = $conn->insert_id;
+
+            if (!$wasExisting && $optStock > 0) {
+                log_stock_movement($conn, $id, 'ingreso', $optStock, 'Stock inicial', $newOptionId);
+            }
         }
     }
 

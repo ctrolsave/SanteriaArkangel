@@ -138,6 +138,10 @@ if ($method === 'POST') {
             'name' => $product['name'],
             'label' => options_label($product, $selection),
             'unitPrice' => $unitPrice,
+            // Si el producto tiene variantes, cada opción elegida tiene su
+            // propio stock (ver resolve_selected_options); si no, se usa el
+            // stock general del producto.
+            'selectedOptions' => resolve_selected_options($product, $selection),
         ];
     }
 
@@ -156,16 +160,34 @@ if ($method === 'POST') {
     $conn->begin_transaction();
     try {
         foreach ($resolved as $it) {
-            $lock = $conn->prepare('SELECT stock FROM products WHERE id = ? FOR UPDATE');
-            $lock->bind_param('i', $it['productId']);
-            $lock->execute();
-            $row = $lock->get_result()->fetch_assoc();
-            if (!$row || (int) $row['stock'] < $it['qty']) {
-                throw new Exception('stock');
+            if (!empty($it['selectedOptions'])) {
+                foreach ($it['selectedOptions'] as $opt) {
+                    $lock = $conn->prepare('SELECT stock FROM variant_options WHERE id = ? FOR UPDATE');
+                    $lock->bind_param('i', $opt['id']);
+                    $lock->execute();
+                    $row = $lock->get_result()->fetch_assoc();
+                    if (!$row || (int) $row['stock'] < $it['qty']) {
+                        throw new Exception('stock');
+                    }
+                }
+            } else {
+                $lock = $conn->prepare('SELECT stock FROM products WHERE id = ? FOR UPDATE');
+                $lock->bind_param('i', $it['productId']);
+                $lock->execute();
+                $row = $lock->get_result()->fetch_assoc();
+                if (!$row || (int) $row['stock'] < $it['qty']) {
+                    throw new Exception('stock');
+                }
             }
         }
         foreach ($resolved as $it) {
-            log_stock_movement($conn, $it['productId'], 'venta', -$it['qty'], 'Venta');
+            if (!empty($it['selectedOptions'])) {
+                foreach ($it['selectedOptions'] as $opt) {
+                    log_stock_movement($conn, $it['productId'], 'venta', -$it['qty'], 'Venta', $opt['id']);
+                }
+            } else {
+                log_stock_movement($conn, $it['productId'], 'venta', -$it['qty'], 'Venta');
+            }
         }
     } catch (Exception $e) {
         $conn->rollback();
