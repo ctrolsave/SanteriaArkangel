@@ -1452,9 +1452,11 @@ function renderProductForm(product) {
                     <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
                     <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
                   </div>
-                  <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
-                  <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
                   <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
+                </div>
+                <div class="opt-photo-tab-wrap">
+                  <button class="opt-photo-tab opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷 Foto</button>
+                  <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
                 </div>
                 <div style="padding-left:44px; margin-bottom:10px;">
                   <button class="btn-secondary toggle-own-price" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; padding:4px 10px;">

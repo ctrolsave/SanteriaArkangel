@@ -387,6 +387,12 @@ textarea { resize: vertical; }
   margin-bottom: 8px; padding: 8px 8px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-alt);
 }
 .variant-option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.opt-photo-tab-wrap { text-align: center; margin-bottom: 6px; }
+.opt-photo-tab {
+  display: inline-block; font-size: 0.72rem; padding: 4px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer;
+}
+.opt-photo-tab:hover { color: var(--accent); border-color: var(--accent); }
 .upload-preview { width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .upload-preview.sm { width: 36px; height: 36px; }
 
