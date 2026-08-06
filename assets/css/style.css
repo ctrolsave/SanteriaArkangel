@@ -383,8 +383,10 @@ textarea { resize: vertical; }
 .variant-group-title { min-width: 0; overflow-wrap: anywhere; }
 .variant-group-title .muted { font-weight: 400; color: var(--muted); font-size: 0.78rem; }
 .variant-group-body { margin-top: 10px; }
-.variant-option-block { margin-bottom: 4px; }
-.variant-option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding-left: 8px; }
+.variant-option-block {
+  margin-bottom: 8px; padding: 8px 8px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-alt);
+}
+.variant-option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .upload-preview { width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .upload-preview.sm { width: 36px; height: 36px; }
 
