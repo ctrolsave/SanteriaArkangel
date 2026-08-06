@@ -1156,9 +1156,12 @@ async function renderAdminDashboard() {
             <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
             <div class="grow">
               <p>${escapeHtml(p.name)}</p>
-              <p class="muted">${escapeHtml(p.category)} · Stock: <span class="${p.stock === 0 ? "stock-zero" : ""}">${p.stock}</span></p>
+              <p class="muted">${escapeHtml(p.category)}</p>
             </div>
-            <button class="btn-secondary dash-add-stock-btn" data-id="${p.id}" title="Agregar stock">📦+</button>
+            <div class="stock-inline-wrap">
+              <label class="stock-inline-label">Stock</label>
+              <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+            </div>
           </div>
         `).join("")}
       </div>
@@ -1169,9 +1172,7 @@ async function renderAdminDashboard() {
     ADMIN_ORDERS_FILTER = "pending";
     renderAdmin("pedidos");
   });
-  document.querySelectorAll(".dash-add-stock-btn").forEach(b => b.addEventListener("click", () => {
-    addStockPrompt(Number(b.dataset.id), renderAdminDashboard);
-  }));
+  wireInlineStockInputs(body, renderAdminDashboard);
 }
 
 function renderAdminCategories() {
@@ -1252,13 +1253,16 @@ function renderAdminProducts() {
       <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
       <div class="grow">
         <p>${escapeHtml(p.name)}</p>
-        <p class="muted">${escapeHtml(p.category)} · Stock: <span class="${p.stock === 0 ? "stock-zero" : ""}">${p.stock}</span></p>
+        <p class="muted">${escapeHtml(p.category)}</p>
+      </div>
+      <div class="stock-inline-wrap">
+        <label class="stock-inline-label">Stock</label>
+        <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
       </div>
       <div class="reorder-arrows">
         <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
         <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
       </div>
-      <button class="btn-secondary add-stock-btn" data-id="${p.id}" title="Agregar stock">📦+</button>
       <button class="btn-secondary edit-p" data-id="${p.id}">Editar</button>
       <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
     </div>
@@ -1275,30 +1279,36 @@ function renderAdminProducts() {
     renderAdminProducts();
     renderGrid();
   }));
-  list.querySelectorAll(".add-stock-btn").forEach(b => b.addEventListener("click", () => addStockPrompt(Number(b.dataset.id))));
   list.querySelectorAll(".move-up").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), -1)));
   list.querySelectorAll(".move-down").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), 1)));
   wireProductDragReorder(list);
+  wireInlineStockInputs(list, renderAdminProducts);
 }
 
-// Suma (o resta, con un número negativo) unidades al stock de un producto
-// sin tener que abrir el formulario y calcular el número final a mano.
-// Queda registrado en el historial de stock de ese producto. `onDone` es
-// qué redibujar después (la lista de Productos por defecto, o el Dashboard
-// cuando se llama desde ahí).
-async function addStockPrompt(productId, onDone) {
-  const product = STATE.products.find(p => p.id === productId);
-  if (!product) return;
-  const input = prompt(`¿Cuántas unidades de "${product.name}" ingresan? (usá un número negativo para restar/corregir)`, "");
-  if (input === null) return;
-  const qty = parseInt(input, 10);
-  if (!qty) { showToast("Ingresá un número distinto de cero."); return; }
-  try {
-    STATE.products = await api("stock.php", { method: "POST", json: { productId, qty } });
-    renderGrid();
-    (onDone || renderAdminProducts)();
-    showToast(qty > 0 ? `Se sumaron ${qty} unidades.` : `Se restaron ${Math.abs(qty)} unidades.`);
-  } catch (e) { showToast(e.message); }
+// Campo de stock editable en línea: se ve el número actual y al cambiarlo
+// (y sacar el foco) se guarda como un "ajuste", quedando en el historial
+// de ese producto. `onDone` es qué redibujar después (la lista de
+// Productos por defecto, o el Dashboard cuando se llama desde ahí).
+function wireInlineStockInputs(container, onDone) {
+  container.querySelectorAll(".stock-inline-input").forEach(inp => {
+    inp.addEventListener("change", async () => {
+      const id = Number(inp.dataset.id);
+      const product = STATE.products.find(p => p.id === id);
+      if (!product) return;
+      const newStock = Math.max(0, parseInt(inp.value, 10) || 0);
+      const delta = newStock - product.stock;
+      if (delta === 0) { inp.value = newStock; return; }
+      try {
+        STATE.products = await api("stock.php", { method: "POST", json: { productId: id, qty: delta, type: "ajuste", note: "Editado en línea" } });
+        renderGrid();
+        (onDone || renderAdminProducts)();
+        showToast("Stock actualizado.");
+      } catch (e) {
+        showToast(e.message);
+        inp.value = product.stock;
+      }
+    });
+  });
 }
 
 // Reordena de a una posición: fallback simple y 100% táctil para cuando

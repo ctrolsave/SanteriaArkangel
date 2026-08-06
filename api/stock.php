@@ -33,6 +33,11 @@ if ($method === 'POST') {
     $productId = (int) ($data['productId'] ?? 0);
     $qty = (int) ($data['qty'] ?? 0);
     $note = trim($data['note'] ?? '');
+    // Por defecto el signo decide (positivo = ingreso, negativo = ajuste),
+    // pero quien llama puede forzar el tipo (ej: editar el número a mano
+    // siempre es un "ajuste", aunque el número haya subido).
+    $allowedTypes = ['ingreso', 'venta', 'ajuste'];
+    $type = in_array($data['type'] ?? '', $allowedTypes, true) ? $data['type'] : ($qty > 0 ? 'ingreso' : 'ajuste');
 
     if ($productId <= 0 || $qty === 0) {
         respond(['error' => 'Cantidad inválida.'], 400);
@@ -45,7 +50,7 @@ if ($method === 'POST') {
         respond(['error' => 'El producto no existe.'], 404);
     }
 
-    log_stock_movement($conn, $productId, $qty > 0 ? 'ingreso' : 'ajuste', $qty, $note);
+    log_stock_movement($conn, $productId, $type, $qty, $note);
     respond(fetch_all_products($conn));
 }
 
