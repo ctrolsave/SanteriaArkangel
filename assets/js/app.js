@@ -1433,7 +1433,7 @@ function renderProductForm(product) {
         </div>
         <div class="center-tab-wrap">
           <button class="center-tab group-toggle-tab" data-gi="${gi}">
-            <span class="chevron ${g._open ? "open" : ""}">⌄</span> ${g._open ? "Ocultar opciones" : "Ver opciones"}
+            <span class="chevron ${g._open ? "open" : ""}">⌄</span>
           </button>
         </div>
         <div class="variant-group-body ${g._open ? "" : "hidden"}">
