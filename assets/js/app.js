@@ -1426,7 +1426,7 @@ function renderProductForm(product) {
           <span class="drag-handle group-drag-handle" title="Arrastrar para reordenar">⠿</span>
           <button class="group-toggle" data-gi="${gi}">
             <span class="chevron ${g._open ? "open" : ""}">⌄</span>
-            <span class="variant-group-title">${escapeHtml(g.name) || "Nuevo grupo"} <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
+            <span class="variant-group-title"><span class="title-name" data-gi="${gi}">${escapeHtml(g.name) || "Nuevo grupo"}</span> <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
           </button>
           <div class="reorder-arrows">
             <button class="reorder-btn move-group-up" data-gi="${gi}" ${gi === 0 ? "disabled" : ""} title="Subir">▲</button>
@@ -1511,7 +1511,10 @@ function renderProductForm(product) {
     });
 
     wrap.querySelectorAll(".group-name").forEach(inp => inp.addEventListener("input", e => {
-      form.variantGroups[e.target.dataset.gi].name = e.target.value;
+      const gi = e.target.dataset.gi;
+      form.variantGroups[gi].name = e.target.value;
+      const titleEl = wrap.querySelector(`.title-name[data-gi="${gi}"]`);
+      if (titleEl) titleEl.textContent = e.target.value || "Nuevo grupo";
     }));
     wrap.querySelectorAll(".remove-group").forEach(b => b.addEventListener("click", () => {
       form.variantGroups.splice(Number(b.dataset.gi), 1); drawGroups();
