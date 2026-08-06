@@ -374,25 +374,23 @@ textarea { resize: vertical; }
 
 .variant-group-box { padding: 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px; }
 .variant-group-header { display: flex; align-items: center; gap: 8px; }
-.group-toggle {
-  display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; background: none; border: none;
-  padding: 4px 0; text-align: left; cursor: pointer; font: inherit; color: inherit;
-}
-.group-toggle .chevron { display: inline-block; flex-shrink: 0; font-size: 1.4rem; line-height: 1; font-weight: 700; color: var(--muted); transition: transform .15s ease; }
-.group-toggle .chevron.open { transform: rotate(180deg); }
-.variant-group-title { min-width: 0; overflow-wrap: anywhere; }
+.variant-group-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .variant-group-title .muted { font-weight: 400; color: var(--muted); font-size: 0.78rem; }
-.variant-group-body { margin-top: 10px; }
+.variant-group-body { margin-top: 4px; }
 .variant-option-block {
   margin-bottom: 8px; padding: 8px 8px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-alt);
 }
 .variant-option-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.opt-photo-tab-wrap { text-align: center; margin-bottom: 6px; }
-.opt-photo-tab {
-  display: inline-block; font-size: 0.72rem; padding: 4px 14px; border-radius: 999px;
+
+/* Pestaña chica centrada (ej: colapsar un grupo de variantes) */
+.center-tab-wrap { text-align: center; margin: 6px 0; }
+.center-tab {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; padding: 4px 14px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer;
 }
-.opt-photo-tab:hover { color: var(--accent); border-color: var(--accent); }
+.center-tab:hover { color: var(--accent); border-color: var(--accent); }
+.center-tab .chevron { display: inline-block; line-height: 1; font-size: 0.9rem; transition: transform .15s ease; }
+.center-tab .chevron.open { transform: rotate(180deg); }
 .upload-preview { width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--bg-alt); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .upload-preview.sm { width: 36px; height: 36px; }
 

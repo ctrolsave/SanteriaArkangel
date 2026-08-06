@@ -1424,15 +1424,17 @@ function renderProductForm(product) {
       <div class="variant-group-box" data-gi="${gi}">
         <div class="variant-group-header">
           <span class="drag-handle group-drag-handle" title="Arrastrar para reordenar">⠿</span>
-          <button class="group-toggle" data-gi="${gi}">
-            <span class="chevron ${g._open ? "open" : ""}">⌄</span>
-            <span class="variant-group-title"><span class="title-name" data-gi="${gi}">${escapeHtml(g.name) || "Nuevo grupo"}</span> <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
-          </button>
+          <span class="variant-group-title"><span class="title-name" data-gi="${gi}">${escapeHtml(g.name) || "Nuevo grupo"}</span> <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
           <div class="reorder-arrows">
             <button class="reorder-btn move-group-up" data-gi="${gi}" ${gi === 0 ? "disabled" : ""} title="Subir">▲</button>
             <button class="reorder-btn move-group-down" data-gi="${gi}" ${gi === form.variantGroups.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
           </div>
           <button class="btn-danger remove-group" data-gi="${gi}">🗑</button>
+        </div>
+        <div class="center-tab-wrap">
+          <button class="center-tab group-toggle-tab" data-gi="${gi}">
+            <span class="chevron ${g._open ? "open" : ""}">⌄</span> ${g._open ? "Ocultar opciones" : "Ver opciones"}
+          </button>
         </div>
         <div class="variant-group-body ${g._open ? "" : "hidden"}">
           <div style="display:flex; gap:8px; margin-bottom:8px;">
@@ -1452,11 +1454,9 @@ function renderProductForm(product) {
                     <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
                     <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
                   </div>
-                  <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
-                </div>
-                <div class="opt-photo-tab-wrap">
-                  <button class="opt-photo-tab opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷 Foto</button>
+                  <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
                   <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
+                  <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
                 </div>
                 <div style="padding-left:44px; margin-bottom:10px;">
                   <button class="btn-secondary toggle-own-price" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; padding:4px 10px;">
@@ -1489,7 +1489,7 @@ function renderProductForm(product) {
       </div>
     `).join("");
 
-    wrap.querySelectorAll(".group-toggle").forEach(b => b.addEventListener("click", () => {
+    wrap.querySelectorAll(".group-toggle-tab").forEach(b => b.addEventListener("click", () => {
       form.variantGroups[Number(b.dataset.gi)]._open = !form.variantGroups[Number(b.dataset.gi)]._open;
       drawGroups();
     }));
