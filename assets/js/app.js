@@ -1227,11 +1227,15 @@ function renderAdminProducts() {
     <div class="admin-row reorder-row" data-id="${p.id}">
       <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
       <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
-      <div class="grow"><p>${escapeHtml(p.name)}</p><p class="muted">${escapeHtml(p.category)}</p></div>
+      <div class="grow">
+        <p>${escapeHtml(p.name)}</p>
+        <p class="muted">${escapeHtml(p.category)} · Stock: <span class="${p.stock === 0 ? "stock-zero" : ""}">${p.stock}</span></p>
+      </div>
       <div class="reorder-arrows">
         <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
         <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
       </div>
+      <button class="btn-secondary add-stock-btn" data-id="${p.id}" title="Agregar stock">📦+</button>
       <button class="btn-secondary edit-p" data-id="${p.id}">Editar</button>
       <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
     </div>
@@ -1248,9 +1252,28 @@ function renderAdminProducts() {
     renderAdminProducts();
     renderGrid();
   }));
+  list.querySelectorAll(".add-stock-btn").forEach(b => b.addEventListener("click", () => addStockPrompt(Number(b.dataset.id))));
   list.querySelectorAll(".move-up").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), -1)));
   list.querySelectorAll(".move-down").forEach(b => b.addEventListener("click", () => moveProduct(Number(b.dataset.id), 1)));
   wireProductDragReorder(list);
+}
+
+// Suma (o resta, con un número negativo) unidades al stock de un producto
+// sin tener que abrir el formulario y calcular el número final a mano.
+// Queda registrado en el historial de stock de ese producto.
+async function addStockPrompt(productId) {
+  const product = STATE.products.find(p => p.id === productId);
+  if (!product) return;
+  const input = prompt(`¿Cuántas unidades de "${product.name}" ingresan? (usá un número negativo para restar/corregir)`, "");
+  if (input === null) return;
+  const qty = parseInt(input, 10);
+  if (!qty) { showToast("Ingresá un número distinto de cero."); return; }
+  try {
+    STATE.products = await api("stock.php", { method: "POST", json: { productId, qty } });
+    renderAdminProducts();
+    renderGrid();
+    showToast(qty > 0 ? `Se sumaron ${qty} unidades.` : `Se restaron ${Math.abs(qty)} unidades.`);
+  } catch (e) { showToast(e.message); }
 }
 
 // Reordena de a una posición: fallback simple y 100% táctil para cuando
@@ -1373,7 +1396,11 @@ function renderProductForm(product) {
       <div class="field">
         <label class="field-label">Stock disponible</label>
         <input type="number" id="pf-stock" min="0" value="${form.stock ?? 20}">
-        <p style="font-size:0.72rem; color:var(--muted); margin-top:4px;">Se descuenta solo con cada venta. El cliente nunca ve este número — solo le va a aparecer "Agotado" cuando llegue a 0.</p>
+        <p style="font-size:0.72rem; color:var(--muted); margin-top:4px;">Se descuenta solo con cada venta. El cliente nunca ve este número — solo le va a aparecer "Agotado" cuando llegue a 0. Cambiar este número queda anotado como un ajuste en el historial.</p>
+        ${product ? `
+          <p style="margin-top:6px;"><a href="#" id="stock-history-link" style="color:var(--accent); font-size:0.8rem;">📜 Ver historial de stock</a></p>
+          <div id="stock-history-box" class="hidden" style="margin-top:8px; padding:8px; background:var(--bg-alt); border-radius:8px; max-height:220px; overflow-y:auto;"></div>
+        ` : ""}
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1411,6 +1438,33 @@ function renderProductForm(product) {
       drawTiers();
     });
     document.getElementById("pf-save-btn").addEventListener("click", saveProduct);
+    document.getElementById("stock-history-link")?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const box = document.getElementById("stock-history-box");
+      if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+      box.classList.remove("hidden");
+      box.innerHTML = `<p style="color:var(--muted); font-size:0.8rem;">Cargando…</p>`;
+      try {
+        const movements = await api(`stock.php?product_id=${form.id}`);
+        if (movements.length === 0) {
+          box.innerHTML = `<p style="color:var(--muted); font-size:0.8rem;">Todavía no hay movimientos registrados.</p>`;
+          return;
+        }
+        const typeLabel = { ingreso: "📥 Ingreso", venta: "🛒 Venta", ajuste: "✏️ Ajuste" };
+        box.innerHTML = movements.map(m => `
+          <div style="display:flex; justify-content:space-between; gap:8px; padding:4px 0; border-bottom:1px solid var(--line); font-size:0.78rem;">
+            <span>${typeLabel[m.type] || m.type}${m.note ? ` — ${escapeHtml(m.note)}` : ""}</span>
+            <span style="text-align:right; white-space:nowrap;">
+              <strong style="color:${m.delta > 0 ? "#1a6b3f" : "var(--danger)"};">${m.delta > 0 ? "+" : ""}${m.delta}</strong>
+              <span style="color:var(--muted);"> → ${m.resultingStock}</span><br>
+              <span style="color:var(--muted); font-size:0.7rem;">${parseServerDate(m.createdAt).toLocaleString("es-AR")}</span>
+            </span>
+          </div>
+        `).join("");
+      } catch (err) {
+        box.innerHTML = `<p style="color:var(--danger); font-size:0.8rem;">${err.message}</p>`;
+      }
+    });
 
     drawGroups();
     drawTiers();

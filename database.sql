@@ -186,3 +186,17 @@ CREATE TABLE IF NOT EXISTS password_resets (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Historial de stock por producto: cada vez que entra mercadería, se
+-- vende, o se corrige el número a mano, queda una fila con cuánto cambió
+-- y cuánto quedó, para poder ver "entraron 30, se vendieron 12, quedan 18".
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  product_id INT NOT NULL,
+  type VARCHAR(20) NOT NULL,
+  delta INT NOT NULL,
+  resulting_stock INT NOT NULL,
+  note VARCHAR(255) DEFAULT '',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -111,6 +111,27 @@ function fetch_all_products($conn) {
 }
 
 /**
+ * Registra un movimiento de stock (ingreso, venta o ajuste manual) y aplica
+ * el delta a products.stock en la misma operación, para que el número de
+ * stock y el historial nunca queden desincronizados entre sí.
+ */
+function log_stock_movement($conn, $productId, $type, $delta, $note = '') {
+    if ($delta === 0) return;
+    $stmt = $conn->prepare('UPDATE products SET stock = GREATEST(0, stock + ?) WHERE id = ?');
+    $stmt->bind_param('ii', $delta, $productId);
+    $stmt->execute();
+
+    $row = $conn->prepare('SELECT stock FROM products WHERE id = ?');
+    $row->bind_param('i', $productId);
+    $row->execute();
+    $resulting = (int) ($row->get_result()->fetch_assoc()['stock'] ?? 0);
+
+    $ins = $conn->prepare('INSERT INTO stock_movements (product_id, type, delta, resulting_stock, note) VALUES (?,?,?,?,?)');
+    $ins->bind_param('isiis', $productId, $type, $delta, $resulting, $note);
+    $ins->execute();
+}
+
+/**
  * Las siguientes cuatro funciones recalculan, del lado del servidor, el mismo
  * precio que ya calcula el frontend (ver assets/js/app.js: priceForQty,
  * effectiveTiers, resolveTiersForSelection, optionsLabel). Se usan al crear un

@@ -57,24 +57,41 @@ if ($method === 'POST') {
     $removeImage = ($_POST['remove_image'] ?? '0') === '1';
 
     if ($id > 0) {
+        // El stock se maneja aparte (log_stock_movement más abajo), para que
+        // cada cambio quede registrado en el historial en vez de perderse
+        // como un simple pisado de número.
+        $oldRow = $conn->prepare('SELECT stock FROM products WHERE id = ?');
+        $oldRow->bind_param('i', $id);
+        $oldRow->execute();
+        $oldStock = (int) ($oldRow->get_result()->fetch_assoc()['stock'] ?? 0);
+
         $imageSql = $imagePath ? ', image = ?' : ($removeImage ? ", image = ''" : '');
-        $sql = "UPDATE products SET name=?, category=?, description=?, is_offer=?, offer_price=?, stock=? $imageSql WHERE id=?";
+        $sql = "UPDATE products SET name=?, category=?, description=?, is_offer=?, offer_price=? $imageSql WHERE id=?";
         $stmt = $conn->prepare($sql);
         if ($imagePath) {
-            $stmt->bind_param('sssidisi', $name, $category, $description, $isOffer, $offerPrice, $stock, $imagePath, $id);
+            $stmt->bind_param('sssidsi', $name, $category, $description, $isOffer, $offerPrice, $imagePath, $id);
         } else {
-            $stmt->bind_param('sssidii', $name, $category, $description, $isOffer, $offerPrice, $stock, $id);
+            $stmt->bind_param('sssidi', $name, $category, $description, $isOffer, $offerPrice, $id);
         }
         $stmt->execute();
+
+        if ($stock !== $oldStock) {
+            log_stock_movement($conn, $id, 'ajuste', $stock - $oldStock, 'Editado desde el formulario del producto');
+        }
     } else {
         $img = $imagePath ?: '';
         // El producto nuevo aparece primero (como hasta ahora): se le asigna
-        // el sort_order más alto de la tabla + 1.
+        // el sort_order más alto de la tabla + 1. El stock arranca en 0 y se
+        // carga como un ingreso, para que quede en el historial.
         $sortOrder = (int) ($conn->query('SELECT COALESCE(MAX(sort_order), 0) AS m FROM products')->fetch_assoc()['m']) + 1;
-        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock, sort_order) VALUES (?,?,?,?,?,?,?,?)');
-        $stmt->bind_param('ssssidii', $name, $category, $description, $img, $isOffer, $offerPrice, $stock, $sortOrder);
+        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock, sort_order) VALUES (?,?,?,?,?,?,0,?)');
+        $stmt->bind_param('ssssidi', $name, $category, $description, $img, $isOffer, $offerPrice, $sortOrder);
         $stmt->execute();
         $id = $conn->insert_id;
+
+        if ($stock > 0) {
+            log_stock_movement($conn, $id, 'ingreso', $stock, 'Stock inicial');
+        }
     }
 
     // Escalones de precio: se reemplazan todos en cada guardado

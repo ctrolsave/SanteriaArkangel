@@ -165,9 +165,7 @@ if ($method === 'POST') {
             }
         }
         foreach ($resolved as $it) {
-            $upd = $conn->prepare('UPDATE products SET stock = stock - ? WHERE id = ?');
-            $upd->bind_param('ii', $it['qty'], $it['productId']);
-            $upd->execute();
+            log_stock_movement($conn, $it['productId'], 'venta', -$it['qty'], 'Venta');
         }
     } catch (Exception $e) {
         $conn->rollback();

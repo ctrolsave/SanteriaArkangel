@@ -356,6 +356,7 @@ textarea { resize: vertical; }
 .admin-row .grow { flex: 1; min-width: 0; }
 .admin-row .grow p { margin: 0; }
 .admin-row .grow .muted { color: var(--muted); font-size: 0.75rem; }
+.admin-row .grow .muted .stock-zero { color: var(--danger); font-weight: 700; }
 
 /* Reordenar (drag & drop + flechas): productos, grupos de variantes y opciones */
 .dragging { opacity: 0.6; box-shadow: 0 6px 16px rgba(18,50,74,0.18); }
