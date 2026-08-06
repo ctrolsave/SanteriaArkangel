@@ -1123,6 +1123,8 @@ async function renderAdminDashboard() {
   ORDER_STATUSES.forEach(s => { byStatus[s] = 0; });
   orders.forEach(o => { byStatus[o.status] = (byStatus[o.status] || 0) + 1; });
 
+  const lowStock = STATE.products.filter(p => p.stock <= 5).sort((a, b) => a.stock - b.stock);
+
   body.innerHTML = `
     <div class="stat-grid">
       <div class="stat-card accent">
@@ -1143,12 +1145,33 @@ async function renderAdminDashboard() {
       ${ORDER_STATUSES.map(s => `<span class="status-breakdown-item">${escapeHtml(s)}: ${byStatus[s]}</span>`).join("")}
     </div>
     <button class="btn-secondary" id="dash-go-orders">Ver pedidos por pagar →</button>
+
+    <p class="field-group-title">Stock bajo o agotado</p>
+    ${lowStock.length === 0 ? `
+      <p style="color:var(--muted); font-size:0.85rem;">Todos los productos tienen stock suficiente (más de 5 unidades).</p>
+    ` : `
+      <div id="dash-low-stock-list">
+        ${lowStock.map(p => `
+          <div class="admin-row">
+            <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
+            <div class="grow">
+              <p>${escapeHtml(p.name)}</p>
+              <p class="muted">${escapeHtml(p.category)} · Stock: <span class="${p.stock === 0 ? "stock-zero" : ""}">${p.stock}</span></p>
+            </div>
+            <button class="btn-secondary dash-add-stock-btn" data-id="${p.id}" title="Agregar stock">📦+</button>
+          </div>
+        `).join("")}
+      </div>
+    `}
   `;
 
   document.getElementById("dash-go-orders").addEventListener("click", () => {
     ADMIN_ORDERS_FILTER = "pending";
     renderAdmin("pedidos");
   });
+  document.querySelectorAll(".dash-add-stock-btn").forEach(b => b.addEventListener("click", () => {
+    addStockPrompt(Number(b.dataset.id), renderAdminDashboard);
+  }));
 }
 
 function renderAdminCategories() {
@@ -1260,8 +1283,10 @@ function renderAdminProducts() {
 
 // Suma (o resta, con un número negativo) unidades al stock de un producto
 // sin tener que abrir el formulario y calcular el número final a mano.
-// Queda registrado en el historial de stock de ese producto.
-async function addStockPrompt(productId) {
+// Queda registrado en el historial de stock de ese producto. `onDone` es
+// qué redibujar después (la lista de Productos por defecto, o el Dashboard
+// cuando se llama desde ahí).
+async function addStockPrompt(productId, onDone) {
   const product = STATE.products.find(p => p.id === productId);
   if (!product) return;
   const input = prompt(`¿Cuántas unidades de "${product.name}" ingresan? (usá un número negativo para restar/corregir)`, "");
@@ -1270,8 +1295,8 @@ async function addStockPrompt(productId) {
   if (!qty) { showToast("Ingresá un número distinto de cero."); return; }
   try {
     STATE.products = await api("stock.php", { method: "POST", json: { productId, qty } });
-    renderAdminProducts();
     renderGrid();
+    (onDone || renderAdminProducts)();
     showToast(qty > 0 ? `Se sumaron ${qty} unidades.` : `Se restaron ${Math.abs(qty)} unidades.`);
   } catch (e) { showToast(e.message); }
 }
