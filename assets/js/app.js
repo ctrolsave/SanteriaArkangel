@@ -118,6 +118,41 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Comprime/achica una foto en el navegador ANTES de subirla. Las fotos de
+// celular pesan varios MB y mandarlas así por el túnel es lento y gasta el
+// límite de datos. Se achica el lado más largo a `maxDim` y se exporta como
+// JPEG (~0.82 de calidad), quedando típicamente 10-20x más liviana. Si algo
+// falla o no se logra achicar, se devuelve el archivo original sin tocar
+// (nunca rompe la subida). No toca GIF (se perdería la animación).
+function compressImage(file, maxDim = 1400, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith("image/") || file.type === "image/gif") {
+      resolve(file); return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const width = Math.round(img.width * scale);
+      const height = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff"; // fondo blanco por si viene un PNG con transparencia
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (!blob || blob.size >= file.size) { resolve(file); return; }
+        const name = (file.name || "foto").replace(/\.[^.]+$/, "") + ".jpg";
+        resolve(new File([blob], name, { type: "image/jpeg" }));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 // Campo de contraseña con botón de ver/ocultar. attrs va tal cual dentro del <input>.
 function pwFieldHtml(id, attrs = "") {
   return `<div class="pw-wrap">
@@ -1558,11 +1593,11 @@ function renderProductForm(product) {
 
     document.getElementById("back-to-list").addEventListener("click", renderAdminProducts);
     document.getElementById("main-img-btn").addEventListener("click", () => document.getElementById("main-img-input").click());
-    document.getElementById("main-img-input").addEventListener("change", (e) => {
+    document.getElementById("main-img-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      mainImageFile = file;
-      document.getElementById("main-img-preview").innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+      mainImageFile = await compressImage(file, 1400);
+      document.getElementById("main-img-preview").innerHTML = `<img src="${URL.createObjectURL(mainImageFile)}">`;
     });
     document.getElementById("pf-offer").addEventListener("change", (e) => {
       form.isOffer = e.target.checked;
@@ -1795,12 +1830,15 @@ function renderProductForm(product) {
     wrap.querySelectorAll(".opt-img-btn").forEach(b => b.addEventListener("click", () => {
       wrap.querySelector(`.opt-img-input[data-gi="${b.dataset.gi}"][data-oi="${b.dataset.oi}"]`).click();
     }));
-    wrap.querySelectorAll(".opt-img-input").forEach(inp => inp.addEventListener("change", (e) => {
+    wrap.querySelectorAll(".opt-img-input").forEach(inp => inp.addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      const opt = form.variantGroups[e.target.dataset.gi].options[e.target.dataset.oi];
-      optionFiles[opt.tempId] = file;
-      wrap.querySelector(`.opt-preview[data-gi="${e.target.dataset.gi}"][data-oi="${e.target.dataset.oi}"]`).innerHTML = `<img src="${URL.createObjectURL(file)}">`;
+      const gi = e.target.dataset.gi, oi = e.target.dataset.oi;
+      const opt = form.variantGroups[gi].options[oi];
+      const compressed = await compressImage(file, 900);
+      optionFiles[opt.tempId] = compressed;
+      const preview = wrap.querySelector(`.opt-preview[data-gi="${gi}"][data-oi="${oi}"]`);
+      if (preview) preview.innerHTML = `<img src="${URL.createObjectURL(compressed)}">`;
     }));
   }
 
