@@ -239,7 +239,13 @@ document.querySelectorAll('.site-nav a[href="index.html"], .site-nav a[href="#fi
    Carga inicial
 ============================================================ */
 async function loadSettings() {
-  STATE.settings = await api("settings.php");
+  // Reutiliza el pedido de settings que ya arrancó el script inline del hero
+  // (para no pedirlo dos veces); si ese pedido falló o no está, lo pide normal.
+  try {
+    STATE.settings = await (window.__settingsReq || api("settings.php"));
+  } catch (e) {
+    STATE.settings = await api("settings.php");
+  }
   const s = STATE.settings;
   document.getElementById("brand-name").textContent = s.store_name || "Santería Arkangel";
   document.getElementById("footer-name").textContent = s.store_name || "Santería Arkangel";

@@ -55,6 +55,20 @@
   </div>
 </section>
 
+<script>
+  // Arranca la descarga del hero del landing lo antes posible: pide settings
+  // ya mismo (sin esperar a que baje todo app.js) y setea el fondo apenas
+  // llega. Guarda la respuesta en window.__settingsReq para que app.js la
+  // reutilice y no vuelva a pedirla.
+  window.__settingsReq = fetch("api/settings.php", { credentials: "include" }).then(function (r) { return r.json(); });
+  window.__settingsReq.then(function (s) {
+    var hero = document.getElementById("hero");
+    if (!hero || !s) return;
+    if (s.hero_image) { hero.classList.add("has-image"); hero.style.setProperty("--hero-img-desktop", "url(/" + s.hero_image + ")"); }
+    if (s.hero_image_mobile) { hero.classList.add("has-mobile-image"); hero.style.setProperty("--hero-img-mobile", "url(/" + s.hero_image_mobile + ")"); }
+  }).catch(function () {});
+</script>
+
 <section class="filters" id="filters-bar">
   <div class="search-box">
     🔎 <input type="text" id="search-input" placeholder="Buscar producto…">
