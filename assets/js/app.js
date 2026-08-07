@@ -1150,7 +1150,22 @@ async function renderAdminDashboard() {
   ORDER_STATUSES.forEach(s => { byStatus[s] = 0; });
   orders.forEach(o => { byStatus[o.status] = (byStatus[o.status] || 0) + 1; });
 
-  const lowStock = STATE.products.filter(p => p.stock <= 5).sort((a, b) => a.stock - b.stock);
+  // Si el producto tiene variantes, el stock que importa es el de cada
+  // opción (ej: "vela roja" agotada aunque "vela rosa" tenga de sobra) —
+  // el número general del producto queda sin uso en ese caso.
+  const lowStockItems = [];
+  STATE.products.forEach(p => {
+    if (p.variantGroups && p.variantGroups.length > 0) {
+      p.variantGroups.forEach(g => {
+        g.options.forEach(o => {
+          if (o.stock <= 5) lowStockItems.push({ product: p, group: g, option: o, stock: o.stock });
+        });
+      });
+    } else if (p.stock <= 5) {
+      lowStockItems.push({ product: p, stock: p.stock });
+    }
+  });
+  lowStockItems.sort((a, b) => a.stock - b.stock);
 
   body.innerHTML = `
     <div class="stat-grid">
@@ -1174,25 +1189,32 @@ async function renderAdminDashboard() {
     <button class="btn-secondary" id="dash-go-orders">Ver pedidos por pagar →</button>
 
     <p class="field-group-title">Stock bajo o agotado</p>
-    ${lowStock.length === 0 ? `
-      <p style="color:var(--muted); font-size:0.85rem;">Todos los productos tienen stock suficiente (más de 5 unidades).</p>
+    ${lowStockItems.length === 0 ? `
+      <p style="color:var(--muted); font-size:0.85rem;">Todo tiene stock suficiente (más de 5 unidades).</p>
     ` : `
       <div id="dash-low-stock-list">
-        ${lowStock.map(p => `
+        ${lowStockItems.map(item => {
+          const p = item.product;
+          const subtitle = item.option ? `${escapeHtml(item.group.name)}: ${escapeHtml(item.option.value)}` : escapeHtml(p.category);
+          const stockInput = item.option
+            ? `<input type="number" class="stock-inline-input option-stock-existing ${item.stock === 0 ? "stock-zero" : ""}" data-option-id="${item.option.id}" data-product-id="${p.id}" value="${item.stock}" min="0">`
+            : `<input type="number" class="stock-inline-input ${item.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${item.stock}" min="0">`;
+          return `
           <div class="admin-row">
-            <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
+            <div class="thumb-sm">${(item.option?.image || p.image) ? `<img src="${item.option?.image || p.image}">` : "🕊️"}</div>
             <div class="grow">
               <p>${escapeHtml(p.name)}</p>
-              <p class="muted">${escapeHtml(p.category)}</p>
+              <p class="muted">${subtitle}</p>
             </div>
             <div class="admin-row-controls">
               <div class="stock-inline-wrap">
                 <label class="stock-inline-label">Stock</label>
-                <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+                ${stockInput}
               </div>
             </div>
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
     `}
   `;
@@ -1202,6 +1224,7 @@ async function renderAdminDashboard() {
     renderAdmin("pedidos");
   });
   wireInlineStockInputs(body, renderAdminDashboard);
+  wireOptionStockInputs(body, renderAdminDashboard);
 }
 
 function renderAdminCategories() {
@@ -1321,7 +1344,7 @@ function renderAdminProducts() {
 // de ese producto. `onDone` es qué redibujar después (la lista de
 // Productos por defecto, o el Dashboard cuando se llama desde ahí).
 function wireInlineStockInputs(container, onDone) {
-  container.querySelectorAll(".stock-inline-input").forEach(inp => {
+  container.querySelectorAll(".stock-inline-input:not(.option-stock-existing):not(.option-stock-new)").forEach(inp => {
     inp.addEventListener("change", async () => {
       const id = Number(inp.dataset.id);
       const product = STATE.products.find(p => p.id === id);
@@ -1338,6 +1361,45 @@ function wireInlineStockInputs(container, onDone) {
         showToast(e.message);
         inp.value = product.stock;
       }
+    });
+  });
+}
+
+// Guarda el cambio de stock de UNA opción puntual (ej: "vela roja"),
+// llamado tanto desde el Dashboard como desde el formulario de producto.
+// `onSaved` decide qué hacer después: redibujar todo, o solo actualizar el
+// número en memoria para no perder el foco de otros campos del formulario.
+async function saveOptionStockChange(inp, productId, optionId, currentStock, note, onSaved) {
+  const newStock = Math.max(0, parseInt(inp.value, 10) || 0);
+  const delta = newStock - (currentStock || 0);
+  if (delta === 0) { inp.value = newStock; return; }
+  try {
+    STATE.products = await api("stock.php", { method: "POST", json: { productId, optionId, qty: delta, type: "ajuste", note } });
+    inp.classList.toggle("stock-zero", newStock === 0);
+    showToast("Stock actualizado.");
+    renderGrid();
+    onSaved(newStock);
+  } catch (e) {
+    showToast(e.message);
+    inp.value = currentStock || 0;
+  }
+}
+
+// Wiring de los campos de stock por opción que aparecen fuera del
+// formulario de producto (ej: la lista de "Stock bajo" del Dashboard).
+function wireOptionStockInputs(container, onDone) {
+  container.querySelectorAll(".option-stock-existing").forEach(inp => {
+    inp.addEventListener("change", () => {
+      const optionId = Number(inp.dataset.optionId);
+      const productId = Number(inp.dataset.productId);
+      const product = STATE.products.find(p => p.id === productId);
+      let option = null;
+      (product?.variantGroups || []).forEach(g => {
+        const found = g.options.find(o => o.id === optionId);
+        if (found) option = found;
+      });
+      if (!option) return;
+      saveOptionStockChange(inp, productId, optionId, option.stock, "Editado desde el Dashboard", () => (onDone || renderAdminDashboard)());
     });
   });
 }
@@ -1674,7 +1736,7 @@ function renderProductForm(product) {
     }));
     // Opción que ya existe: cambiar el stock acá se guarda al toque (queda
     // en el historial como "ajuste"), igual que en la lista de Productos.
-    wrap.querySelectorAll(".option-stock-existing").forEach(inp => inp.addEventListener("change", async () => {
+    wrap.querySelectorAll(".option-stock-existing").forEach(inp => inp.addEventListener("change", () => {
       const optionId = Number(inp.dataset.optionId);
       let option = null;
       for (const g of form.variantGroups) {
@@ -1682,19 +1744,7 @@ function renderProductForm(product) {
         if (found) { option = found; break; }
       }
       if (!option) return;
-      const newStock = Math.max(0, parseInt(inp.value, 10) || 0);
-      const delta = newStock - (option.stock || 0);
-      if (delta === 0) { inp.value = newStock; return; }
-      try {
-        STATE.products = await api("stock.php", { method: "POST", json: { productId: form.id, optionId, qty: delta, type: "ajuste", note: "Editado en el formulario de variantes" } });
-        option.stock = newStock;
-        inp.classList.toggle("stock-zero", newStock === 0);
-        showToast("Stock actualizado.");
-        renderGrid();
-      } catch (e) {
-        showToast(e.message);
-        inp.value = option.stock || 0;
-      }
+      saveOptionStockChange(inp, form.id, optionId, option.stock, "Editado en el formulario de variantes", (newStock) => { option.stock = newStock; });
     }));
     wrap.querySelectorAll(".toggle-own-price").forEach(b => b.addEventListener("click", () => {
       const opt = form.variantGroups[Number(b.dataset.gi)].options[Number(b.dataset.oi)];
