@@ -366,6 +366,11 @@ textarea { resize: vertical; }
 }
 .stock-inline-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(47,159,196,0.15); }
 .stock-inline-input.stock-zero { border-color: var(--danger); color: var(--danger); }
+.variant-count-badge {
+  display: flex; align-items: center; justify-content: center; width: 56px; height: 33px;
+  border-radius: 8px; border: 1px dashed var(--line); background: var(--bg-alt);
+  font-size: 0.9rem; font-weight: 700; color: var(--muted); cursor: help;
+}
 
 /* Agrupa los controles (stock, flechas, editar, borrar...) que van después
    del nombre en una fila de admin, para poder mandarlos a una segunda línea

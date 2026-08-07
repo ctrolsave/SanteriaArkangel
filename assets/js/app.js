@@ -1299,7 +1299,18 @@ function renderAdminProducts() {
   `;
   document.getElementById("new-product-btn").addEventListener("click", () => renderProductForm(null));
   const list = document.getElementById("admin-product-list");
-  list.innerHTML = STATE.products.map((p, i) => `
+  list.innerHTML = STATE.products.map((p, i) => {
+    const hasVariants = p.variantGroups && p.variantGroups.length > 0;
+    const optionCount = hasVariants ? p.variantGroups.reduce((s, g) => s + g.options.length, 0) : 0;
+    // Un producto con variantes no tiene "un" stock — cada opción tiene el
+    // suyo (ver el formulario). Mostrar el número general acá confundía.
+    const stockCell = hasVariants
+      ? `<div class="stock-inline-wrap"><label class="stock-inline-label">Variantes</label><span class="variant-count-badge" title="Cada opción tiene su propio stock — entrá a Editar para verlas">${optionCount}</span></div>`
+      : `<div class="stock-inline-wrap">
+          <label class="stock-inline-label">Stock</label>
+          <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+        </div>`;
+    return `
     <div class="admin-row reorder-row" data-id="${p.id}">
       <span class="drag-handle" title="Arrastrar para reordenar">⠿</span>
       <div class="thumb-sm">${p.image ? `<img src="${p.image}">` : "🕊️"}</div>
@@ -1308,10 +1319,7 @@ function renderAdminProducts() {
         <p class="muted">${escapeHtml(p.category)}</p>
       </div>
       <div class="admin-row-controls">
-        <div class="stock-inline-wrap">
-          <label class="stock-inline-label">Stock</label>
-          <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
-        </div>
+        ${stockCell}
         <div class="reorder-arrows">
           <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
           <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
@@ -1320,7 +1328,8 @@ function renderAdminProducts() {
         <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
       </div>
     </div>
-  `).join("");
+  `;
+  }).join("");
   list.querySelectorAll(".edit-p").forEach(b => b.addEventListener("click", () => {
     renderProductForm(STATE.products.find(p => p.id === Number(b.dataset.id)));
   }));

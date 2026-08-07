@@ -70,6 +70,14 @@ if ($method === 'POST') {
         if (!$optCheck->get_result()->fetch_assoc()) {
             respond(['error' => 'Esa opción no pertenece a este producto.'], 400);
         }
+    } else {
+        // Un producto con variantes no tiene un stock general propio: cada
+        // opción tiene el suyo. Si se pide tocar el stock del producto sin
+        // pasar optionId, nos aseguramos de que en verdad no tenga variantes.
+        $hasGroups = $conn->query('SELECT 1 FROM variant_groups WHERE product_id = ' . (int) $productId . ' LIMIT 1')->fetch_assoc();
+        if ($hasGroups) {
+            respond(['error' => 'Este producto tiene variantes: el stock se maneja por opción, no en general.'], 400);
+        }
     }
 
     log_stock_movement($conn, $productId, $type, $qty, $note, $optionId);
