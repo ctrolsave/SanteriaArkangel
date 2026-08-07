@@ -1521,15 +1521,17 @@ function renderProductForm(product) {
         <input type="number" id="pf-offer-price" value="${form.offerPrice ?? ""}">
       </div>
 
-      <div class="field">
+      <div class="field" id="stock-field-wrap" style="${form.variantGroups.length > 0 ? "display:none;" : ""}">
         <label class="field-label">Stock disponible</label>
         <input type="number" id="pf-stock" min="0" value="${form.stock ?? 20}">
         <p style="font-size:0.72rem; color:var(--muted); margin-top:4px;">Se descuenta solo con cada venta. El cliente nunca ve este número — solo le va a aparecer "Agotado" cuando llegue a 0. Cambiar este número queda anotado como un ajuste en el historial.</p>
-        ${product ? `
-          <p style="margin-top:6px;"><a href="#" id="stock-history-link" style="color:var(--accent); font-size:0.8rem;">📜 Ver historial de stock</a></p>
-          <div id="stock-history-box" class="hidden" style="margin-top:8px; padding:8px; background:var(--bg-alt); border-radius:8px; max-height:220px; overflow-y:auto;"></div>
-        ` : ""}
       </div>
+      ${product ? `
+        <div class="field">
+          <p><a href="#" id="stock-history-link" style="color:var(--accent); font-size:0.8rem;">📜 Ver historial de stock</a></p>
+          <div id="stock-history-box" class="hidden" style="margin-top:8px; padding:8px; background:var(--bg-alt); border-radius:8px; max-height:220px; overflow-y:auto;"></div>
+        </div>
+      ` : ""}
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
         <label class="field-label" style="margin:0;">Variantes (color, aroma, tamaño…)</label>
@@ -1560,6 +1562,7 @@ function renderProductForm(product) {
     document.getElementById("add-group-btn").addEventListener("click", () => {
       form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [], stock: 0 }], _open: true });
       drawGroups();
+      updateStockFieldVisibility();
     });
     document.getElementById("add-tier-btn").addEventListener("click", () => {
       form.tiers.push({ minQty: 1, price: 0 });
@@ -1714,7 +1717,9 @@ function renderProductForm(product) {
     wrap.querySelectorAll(".remove-group").forEach(b => b.addEventListener("click", () => {
       const g = form.variantGroups[Number(b.dataset.gi)];
       if (!confirm(`¿Borrar el grupo "${g.name || "sin nombre"}" y todas sus opciones (${g.options.length})?`)) return;
-      form.variantGroups.splice(Number(b.dataset.gi), 1); drawGroups();
+      form.variantGroups.splice(Number(b.dataset.gi), 1);
+      drawGroups();
+      updateStockFieldVisibility();
     }));
     wrap.querySelectorAll(".add-option").forEach(b => b.addEventListener("click", () => {
       form.variantGroups[Number(b.dataset.gi)].options.push({ tempId: uid(), value: "", image: "", tiers: [], stock: 0 });
@@ -1805,6 +1810,16 @@ function renderProductForm(product) {
     if (newOi < 0 || newOi >= arr.length) return;
     [arr[oi], arr[newOi]] = [arr[newOi], arr[oi]];
     drawGroups();
+  }
+
+  // El stock general del producto solo tiene sentido cuando NO tiene
+  // variantes — un producto con variantes es en realidad un conjunto de
+  // productos (cada opción con su propio stock), no una sola cosa con un
+  // total. Se oculta el campo en vez de mostrar un número que no significa
+  // nada (ni siquiera sumar las opciones tendría sentido como "el" stock).
+  function updateStockFieldVisibility() {
+    const wrap = document.getElementById("stock-field-wrap");
+    if (wrap) wrap.style.display = form.variantGroups.length > 0 ? "none" : "";
   }
 
   function drawTiers() {
