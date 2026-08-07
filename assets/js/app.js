@@ -1185,9 +1185,11 @@ async function renderAdminDashboard() {
               <p>${escapeHtml(p.name)}</p>
               <p class="muted">${escapeHtml(p.category)}</p>
             </div>
-            <div class="stock-inline-wrap">
-              <label class="stock-inline-label">Stock</label>
-              <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+            <div class="admin-row-controls">
+              <div class="stock-inline-wrap">
+                <label class="stock-inline-label">Stock</label>
+                <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+              </div>
             </div>
           </div>
         `).join("")}
@@ -1282,16 +1284,18 @@ function renderAdminProducts() {
         <p>${escapeHtml(p.name)}</p>
         <p class="muted">${escapeHtml(p.category)}</p>
       </div>
-      <div class="stock-inline-wrap">
-        <label class="stock-inline-label">Stock</label>
-        <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+      <div class="admin-row-controls">
+        <div class="stock-inline-wrap">
+          <label class="stock-inline-label">Stock</label>
+          <input type="number" class="stock-inline-input ${p.stock === 0 ? "stock-zero" : ""}" data-id="${p.id}" value="${p.stock}" min="0">
+        </div>
+        <div class="reorder-arrows">
+          <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
+          <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+        </div>
+        <button class="btn-secondary edit-p" data-id="${p.id}">Editar</button>
+        <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
       </div>
-      <div class="reorder-arrows">
-        <button class="reorder-btn move-up" data-id="${p.id}" ${i === 0 ? "disabled" : ""} title="Subir">▲</button>
-        <button class="reorder-btn move-down" data-id="${p.id}" ${i === STATE.products.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
-      </div>
-      <button class="btn-secondary edit-p" data-id="${p.id}">Editar</button>
-      <button class="btn-danger del-p" data-id="${p.id}">🗑</button>
     </div>
   `).join("");
   list.querySelectorAll(".edit-p").forEach(b => b.addEventListener("click", () => {
@@ -1541,11 +1545,13 @@ function renderProductForm(product) {
         <div class="variant-group-header">
           <span class="drag-handle group-drag-handle" title="Arrastrar para reordenar">⠿</span>
           <span class="variant-group-title"><span class="title-name" data-gi="${gi}">${escapeHtml(g.name) || "Nuevo grupo"}</span> <span class="muted">(${g.options.length} ${g.options.length === 1 ? "opción" : "opciones"})</span></span>
-          <div class="reorder-arrows">
-            <button class="reorder-btn move-group-up" data-gi="${gi}" ${gi === 0 ? "disabled" : ""} title="Subir">▲</button>
-            <button class="reorder-btn move-group-down" data-gi="${gi}" ${gi === form.variantGroups.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+          <div class="admin-row-controls">
+            <div class="reorder-arrows">
+              <button class="reorder-btn move-group-up" data-gi="${gi}" ${gi === 0 ? "disabled" : ""} title="Subir">▲</button>
+              <button class="reorder-btn move-group-down" data-gi="${gi}" ${gi === form.variantGroups.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+            </div>
+            <button class="btn-danger remove-group" data-gi="${gi}">🗑</button>
           </div>
-          <button class="btn-danger remove-group" data-gi="${gi}">🗑</button>
         </div>
         <div class="center-tab-wrap">
           <button class="center-tab group-toggle-tab" data-gi="${gi}">
@@ -1565,21 +1571,23 @@ function renderProductForm(product) {
                 <div class="variant-option-row" data-gi="${gi}" data-oi="${oi}">
                   <span class="drag-handle option-drag-handle" title="Arrastrar para reordenar">⠿</span>
                   <div class="upload-preview sm opt-preview" data-gi="${gi}" data-oi="${oi}">${o.image ? `<img src="${o.image}">` : "🕊️"}</div>
-                  <input type="text" class="option-value" data-gi="${gi}" data-oi="${oi}" placeholder="Ej: Rojo" value="${escapeHtml(o.value)}" style="flex:1;">
-                  <div class="stock-inline-wrap">
-                    <label class="stock-inline-label">Stock</label>
-                    ${o.id
-                      ? `<input type="number" class="stock-inline-input option-stock-existing ${o.stock === 0 ? "stock-zero" : ""}" data-option-id="${o.id}" value="${o.stock || 0}" min="0">`
-                      : `<input type="number" class="stock-inline-input option-stock-new" data-gi="${gi}" data-oi="${oi}" value="${o.stock || 0}" min="0" title="Stock inicial: se guarda al tocar &quot;Guardar producto&quot;">`
-                    }
+                  <input type="text" class="option-value" data-gi="${gi}" data-oi="${oi}" placeholder="Ej: Rojo" value="${escapeHtml(o.value)}" style="flex:1; min-width:80px;">
+                  <div class="admin-row-controls">
+                    <div class="stock-inline-wrap">
+                      <label class="stock-inline-label">Stock</label>
+                      ${o.id
+                        ? `<input type="number" class="stock-inline-input option-stock-existing ${o.stock === 0 ? "stock-zero" : ""}" data-option-id="${o.id}" value="${o.stock || 0}" min="0">`
+                        : `<input type="number" class="stock-inline-input option-stock-new" data-gi="${gi}" data-oi="${oi}" value="${o.stock || 0}" min="0" title="Stock inicial: se guarda al tocar &quot;Guardar producto&quot;">`
+                      }
+                    </div>
+                    <div class="reorder-arrows">
+                      <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
+                      <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
+                    </div>
+                    <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
+                    <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
+                    <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
                   </div>
-                  <div class="reorder-arrows">
-                    <button class="reorder-btn move-opt-up" data-gi="${gi}" data-oi="${oi}" ${oi === 0 ? "disabled" : ""} title="Subir">▲</button>
-                    <button class="reorder-btn move-opt-down" data-gi="${gi}" data-oi="${oi}" ${oi === g.options.length - 1 ? "disabled" : ""} title="Bajar">▼</button>
-                  </div>
-                  <button class="btn-secondary opt-img-btn" data-gi="${gi}" data-oi="${oi}">📷</button>
-                  <input type="file" accept="image/*" class="hidden opt-img-input" data-gi="${gi}" data-oi="${oi}">
-                  <button class="btn-danger remove-option" data-gi="${gi}" data-oi="${oi}">✕</button>
                 </div>
                 <div style="padding-left:44px; margin-bottom:10px;">
                   <button class="btn-secondary toggle-own-price" data-gi="${gi}" data-oi="${oi}" style="font-size:0.75rem; padding:4px 10px;">

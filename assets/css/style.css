@@ -367,6 +367,19 @@ textarea { resize: vertical; }
 .stock-inline-input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(47,159,196,0.15); }
 .stock-inline-input.stock-zero { border-color: var(--danger); color: var(--danger); }
 
+/* Agrupa los controles (stock, flechas, editar, borrar...) que van después
+   del nombre en una fila de admin, para poder mandarlos a una segunda línea
+   completa en pantallas chicas — en vez de aplastarse todos en una sola
+   fila y terminar tapando el nombre (pasaba en el celular). */
+.admin-row-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+@media (max-width: 640px) {
+  .admin-row, .variant-group-header, .variant-option-row { flex-wrap: wrap; }
+  .admin-row-controls {
+    flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+}
+
 /* Reordenar (drag & drop + flechas): productos, grupos de variantes y opciones */
 .dragging { opacity: 0.6; box-shadow: 0 6px 16px rgba(18,50,74,0.18); }
 .drag-handle {
