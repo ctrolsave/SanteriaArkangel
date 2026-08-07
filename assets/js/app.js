@@ -365,8 +365,46 @@ document.getElementById("page-size-select").addEventListener("change", (e) => {
   renderGrid();
 });
 
+let gridLoadObserver = null;
+
+function productCardHtml(p) {
+  const minPrice = priceForQty(effectiveTiers(p, p.tiers), 1);
+  const baseMinPrice = Math.min(...p.tiers.map(t => t.price));
+  const badges = [];
+  if (p.isOffer) badges.push(`<span class="badge offer">Oferta</span>`);
+  if (isNewProduct(p.createdAt)) badges.push(`<span class="badge new">Nuevo</span>`);
+  if (p.inStock === false) badges.push(`<span class="badge" style="background:#5f6b73;">Agotado</span>`);
+  const priceHtml = (p.isOffer && p.offerPrice)
+    ? `<span class="old">${fmt(baseMinPrice)}</span>${fmt(minPrice)}`
+    : `Desde ${fmt(minPrice)}`;
+  // loading="lazy": la foto solo se descarga cuando la tarjeta está por
+  // entrar en pantalla, así la tienda abre al toque y no baja fotos que
+  // nadie llegó a ver (importante con el límite de datos del túnel).
+  return `
+    <button class="card" data-id="${p.id}">
+      ${badges.join("")}
+      <div class="thumb">${p.image ? `<img src="${p.image}" alt="${escapeHtml(p.name)}" loading="lazy" decoding="async">` : `<span class="wing-icon">🕊️</span>`}</div>
+      <div class="body">
+        <p class="cat">${escapeHtml(p.category)}</p>
+        <h3 class="display">${escapeHtml(p.name)}</h3>
+        <p class="price">${priceHtml}</p>
+      </div>
+    </button>`;
+}
+
 function renderGrid() {
   const grid = document.getElementById("product-grid");
+
+  // Un solo listener delegado para toda la grilla (se mantiene aunque se
+  // agreguen tarjetas nuevas), en vez de uno por tarjeta.
+  if (!grid.dataset.delegated) {
+    grid.dataset.delegated = "1";
+    grid.addEventListener("click", (e) => {
+      const card = e.target.closest(".card");
+      if (card) openProduct(Number(card.dataset.id));
+    });
+  }
+
   let filtered = STATE.products.filter(p => {
     const matchesCat = STATE.activeCategory === "Todas" || p.category === STATE.activeCategory;
     const matchesQuery = p.name.toLowerCase().includes(STATE.query.toLowerCase());
@@ -375,50 +413,57 @@ function renderGrid() {
   if (STATE.viewFilter === "novedades") filtered = filtered.filter(p => isNewProduct(p.createdAt));
   if (STATE.viewFilter === "ofertas") filtered = filtered.filter(p => p.isOffer);
 
+  if (gridLoadObserver) { gridLoadObserver.disconnect(); gridLoadObserver = null; }
+  STATE.gridFiltered = filtered;
+  STATE.gridShownCount = 0;
+
   if (filtered.length === 0) {
     grid.innerHTML = `<p style="color:var(--muted); grid-column: 1/-1;">No hay productos que coincidan con tu búsqueda.</p>`;
     return;
   }
+  grid.innerHTML = "";
+  appendNextGridBatch(STATE.visibleCount);
+}
 
-  const shown = filtered.slice(0, STATE.visibleCount);
+// Agrega el próximo lote de tarjetas al final (sin re-dibujar las que ya
+// están). Se dispara solo al acercarse al final del scroll o mientras el
+// navegador está sin actividad, así la página siempre va un paso adelante.
+function appendNextGridBatch(count) {
+  const grid = document.getElementById("product-grid");
+  const filtered = STATE.gridFiltered || [];
+  const from = STATE.gridShownCount || 0;
+  const to = Math.min(from + count, filtered.length);
+  if (to <= from) return;
 
-  grid.innerHTML = shown.map(p => {
-    const minPrice = priceForQty(effectiveTiers(p, p.tiers), 1);
-    const baseMinPrice = Math.min(...p.tiers.map(t => t.price));
-    const badges = [];
-    if (p.isOffer) badges.push(`<span class="badge offer">Oferta</span>`);
-    if (isNewProduct(p.createdAt)) badges.push(`<span class="badge new">Nuevo</span>`);
-    if (p.inStock === false) badges.push(`<span class="badge" style="background:#5f6b73;">Agotado</span>`);
-    const priceHtml = (p.isOffer && p.offerPrice)
-      ? `<span class="old">${fmt(baseMinPrice)}</span>${fmt(minPrice)}`
-      : `Desde ${fmt(minPrice)}`;
-    return `
-      <button class="card" data-id="${p.id}">
-        ${badges.join("")}
-        <div class="thumb">${p.image ? `<img src="${p.image}" alt="${escapeHtml(p.name)}">` : `<span class="wing-icon">🕊️</span>`}</div>
-        <div class="body">
-          <p class="cat">${escapeHtml(p.category)}</p>
-          <h3 class="display">${escapeHtml(p.name)}</h3>
-          <p class="price">${priceHtml}</p>
-        </div>
-      </button>`;
-  }).join("");
+  const oldWrap = grid.querySelector(".load-more-wrap");
+  if (oldWrap) oldWrap.remove();
 
-  if (filtered.length > shown.length) {
+  grid.insertAdjacentHTML("beforeend", filtered.slice(from, to).map(productCardHtml).join(""));
+  STATE.gridShownCount = to;
+
+  if (to < filtered.length) {
+    const step = STATE.pageSize === Infinity ? filtered.length : STATE.pageSize;
     grid.insertAdjacentHTML("beforeend", `
       <div class="load-more-wrap">
-        <button class="btn-secondary" id="load-more-btn">Ver más (${shown.length} de ${filtered.length})</button>
+        <button class="btn-secondary" id="load-more-btn">Ver más (${to} de ${filtered.length})</button>
       </div>`);
-    document.getElementById("load-more-btn").addEventListener("click", () => {
-      const step = STATE.pageSize === Infinity ? filtered.length : STATE.pageSize;
-      STATE.visibleCount += step;
-      renderGrid();
-    });
-  }
+    document.getElementById("load-more-btn").addEventListener("click", () => appendNextGridBatch(step));
 
-  grid.querySelectorAll(".card").forEach(card => {
-    card.addEventListener("click", () => openProduct(Number(card.dataset.id)));
-  });
+    // Carga automática: cuando el "Ver más" se acerca a la pantalla (o si ya
+    // está a la vista porque la página quedó corta y hay inactividad), se
+    // trae el próximo lote solo. Las fotos igual bajan recién al scrollear.
+    const sentinel = grid.querySelector(".load-more-wrap");
+    if ("IntersectionObserver" in window && sentinel) {
+      if (gridLoadObserver) gridLoadObserver.disconnect();
+      gridLoadObserver = new IntersectionObserver((entries) => {
+        if (entries.some(e => e.isIntersecting)) {
+          gridLoadObserver.disconnect();
+          appendNextGridBatch(step);
+        }
+      }, { rootMargin: "500px" });
+      gridLoadObserver.observe(sentinel);
+    }
+  }
 }
 
 /* ============================================================
