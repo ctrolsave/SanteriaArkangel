@@ -48,6 +48,7 @@ if ($method === 'POST') {
     $isOffer = ($_POST['is_offer'] ?? '0') === '1' ? 1 : 0;
     $offerPrice = ($isOffer && isset($_POST['offer_price']) && $_POST['offer_price'] !== '') ? (float) $_POST['offer_price'] : null;
     $stock = max(0, (int) ($_POST['stock'] ?? 0));
+    $variantMode = ($_POST['variant_mode'] ?? 'combine') === 'single' ? 'single' : 'combine';
     $groups = json_decode($_POST['groups_json'] ?? '[]', true) ?: [];
     // Si el producto tiene variantes, el stock se maneja por opción (más
     // abajo) y el número general del producto queda sin uso: no tiene
@@ -71,12 +72,12 @@ if ($method === 'POST') {
         $oldStock = (int) ($oldRow->get_result()->fetch_assoc()['stock'] ?? 0);
 
         $imageSql = $imagePath ? ', image = ?' : ($removeImage ? ", image = ''" : '');
-        $sql = "UPDATE products SET name=?, category=?, description=?, is_offer=?, offer_price=? $imageSql WHERE id=?";
+        $sql = "UPDATE products SET name=?, category=?, description=?, is_offer=?, offer_price=?, variant_mode=? $imageSql WHERE id=?";
         $stmt = $conn->prepare($sql);
         if ($imagePath) {
-            $stmt->bind_param('sssidsi', $name, $category, $description, $isOffer, $offerPrice, $imagePath, $id);
+            $stmt->bind_param('sssidssi', $name, $category, $description, $isOffer, $offerPrice, $variantMode, $imagePath, $id);
         } else {
-            $stmt->bind_param('sssidi', $name, $category, $description, $isOffer, $offerPrice, $id);
+            $stmt->bind_param('sssidsi', $name, $category, $description, $isOffer, $offerPrice, $variantMode, $id);
         }
         $stmt->execute();
 
@@ -89,8 +90,8 @@ if ($method === 'POST') {
         // el sort_order más alto de la tabla + 1. El stock arranca en 0 y se
         // carga como un ingreso, para que quede en el historial.
         $sortOrder = (int) ($conn->query('SELECT COALESCE(MAX(sort_order), 0) AS m FROM products')->fetch_assoc()['m']) + 1;
-        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock, sort_order) VALUES (?,?,?,?,?,?,0,?)');
-        $stmt->bind_param('ssssidi', $name, $category, $description, $img, $isOffer, $offerPrice, $sortOrder);
+        $stmt = $conn->prepare('INSERT INTO products (name, category, description, image, is_offer, offer_price, stock, variant_mode, sort_order) VALUES (?,?,?,?,?,?,0,?,?)');
+        $stmt->bind_param('ssssidsi', $name, $category, $description, $img, $isOffer, $offerPrice, $variantMode, $sortOrder);
         $stmt->execute();
         $id = $conn->insert_id;
 

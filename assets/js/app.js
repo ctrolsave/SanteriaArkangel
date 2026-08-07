@@ -513,12 +513,25 @@ function openProduct(id) {
   const p = STATE.products.find(x => x.id === id);
   if (!p) return;
   PRODUCT_SELECTION = {};
-  // Arranca en la primera opción CON stock de cada grupo (si todas están
-  // agotadas, arranca en la primera igual, para poder mostrarlo agotado).
-  (p.variantGroups || []).forEach(g => {
-    const firstAvailable = g.options.find(o => o.stock > 0) || g.options[0];
-    if (firstAvailable) PRODUCT_SELECTION[g.id] = firstAvailable.id;
-  });
+  const groups = p.variantGroups || [];
+  if (p.variantMode === "single") {
+    // Los grupos son alternativas: se arranca con UNA sola opción elegida
+    // (la primera con stock de cualquier grupo; si no hay, la primera).
+    let chosen = null;
+    for (const g of groups) {
+      const av = g.options.find(o => o.stock > 0);
+      if (av) { chosen = [g.id, av.id]; break; }
+    }
+    if (!chosen && groups[0] && groups[0].options[0]) chosen = [groups[0].id, groups[0].options[0].id];
+    if (chosen) PRODUCT_SELECTION[chosen[0]] = chosen[1];
+  } else {
+    // Combinable: la primera opción CON stock de CADA grupo (si todas están
+    // agotadas, la primera igual, para poder mostrarlo agotado).
+    groups.forEach(g => {
+      const firstAvailable = g.options.find(o => o.stock > 0) || g.options[0];
+      if (firstAvailable) PRODUCT_SELECTION[g.id] = firstAvailable.id;
+    });
+  }
   renderProductModal(p, 1);
   open("modal-product");
 }
@@ -533,7 +546,11 @@ function renderProductModal(p, qty) {
   const activeTiers = resolveTiersForSelection(p, PRODUCT_SELECTION);
   const price = priceForQty(effectiveTiers(p, activeTiers), qty);
   const img = currentProductImage(p, PRODUCT_SELECTION);
-  const groupsHtml = (p.variantGroups || []).map(g => `
+  const single = p.variantMode === "single";
+  const singleHint = single && (p.variantGroups || []).length > 0
+    ? `<p style="font-size:0.8rem; color:var(--muted); margin:0 0 8px;">Elegí <strong>una sola opción</strong> entre estas ${p.variantGroups.length} alternativas:</p>`
+    : "";
+  const groupsHtml = singleHint + (p.variantGroups || []).map(g => `
     <div class="field">
       <label class="field-label">${escapeHtml(g.name)}</label>
       <div style="display:flex; flex-wrap:wrap; gap:8px;">
@@ -587,6 +604,9 @@ function renderProductModal(p, qty) {
 
   document.querySelectorAll(".variant-opt").forEach(btn => {
     btn.addEventListener("click", () => {
+      // En modo "alternativas" el cliente elige una sola opción en total:
+      // al tocar una, se limpian las de los demás grupos.
+      if (p.variantMode === "single") PRODUCT_SELECTION = {};
       PRODUCT_SELECTION[btn.dataset.group] = Number(btn.dataset.option) || btn.dataset.option;
       renderProductModal(p, qty);
     });
@@ -1577,8 +1597,9 @@ function renderProductForm(product) {
   const body = document.getElementById("admin-tab-body");
   const form = product ? JSON.parse(JSON.stringify(product)) : {
     id: null, name: "", category: CATEGORIES[0], description: "", image: "",
-    isOffer: false, offerPrice: null, stock: 20, variantGroups: [], tiers: [{ minQty: 1, price: 0 }],
+    isOffer: false, offerPrice: null, stock: 20, variantMode: "combine", variantGroups: [], tiers: [{ minQty: 1, price: 0 }],
   };
+  if (!form.variantMode) form.variantMode = "combine";
   // tempId para relacionar inputs de imagen de opciones nuevas. Los grupos
   // que ya existían arrancan colapsados (menos lío visual con muchos
   // grupos/opciones); uno recién agregado arranca abierto.
@@ -1632,6 +1653,10 @@ function renderProductForm(product) {
         <label class="field-label" style="margin:0;">Variantes (color, aroma, tamaño…)</label>
         <button class="btn-secondary" id="add-group-btn">+ Agregar nuevo</button>
       </div>
+      <div class="field" style="display:flex; align-items:flex-start; gap:8px; margin-bottom:10px;">
+        <input type="checkbox" id="pf-variant-single" ${form.variantMode === "single" ? "checked" : ""} style="margin-top:3px;">
+        <label for="pf-variant-single" style="font-size:0.82rem; line-height:1.35;">Los grupos son <strong>alternativas</strong> — el cliente elige <strong>una sola opción</strong> en total (ej: pulsera simple <em>o</em> con piedras; velón de 1/3/7 días con su color). Si no, se combinan como Color + Talle.</label>
+      </div>
       <div id="groups-wrap"></div>
 
       <label class="field-label" style="display:block; margin-top:10px;">Precios por cantidad</label>
@@ -1653,6 +1678,9 @@ function renderProductForm(product) {
     document.getElementById("pf-offer").addEventListener("change", (e) => {
       form.isOffer = e.target.checked;
       document.getElementById("offer-price-field").style.display = form.isOffer ? "" : "none";
+    });
+    document.getElementById("pf-variant-single").addEventListener("change", (e) => {
+      form.variantMode = e.target.checked ? "single" : "combine";
     });
     document.getElementById("add-group-btn").addEventListener("click", () => {
       form.variantGroups.push({ id: uid(), name: "", options: [{ tempId: uid(), value: "", image: "", tiers: [], stock: 0 }], _open: true });
@@ -1952,6 +1980,7 @@ function renderProductForm(product) {
     fd.append("is_offer", form.isOffer ? "1" : "0");
     fd.append("offer_price", document.getElementById("pf-offer-price")?.value || "");
     fd.append("stock", document.getElementById("pf-stock").value || "0");
+    fd.append("variant_mode", form.variantMode || "combine");
     if (mainImageFile) fd.append("main_image", mainImageFile);
 
     const groupsPayload = form.variantGroups

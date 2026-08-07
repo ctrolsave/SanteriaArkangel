@@ -92,19 +92,33 @@ function fetch_all_products($conn) {
             $groups[] = ['id' => $gid, 'name' => $g['name'], 'options' => $options];
         }
 
-        // Si el producto tiene variantes, cada opción tiene su propio stock
-        // (ej: "vela rosa" y "vela azul" no comparten pool) y el producto en
-        // general está disponible mientras cada grupo tenga al menos una
-        // opción con stock — el número de products.stock deja de usarse acá.
-        // Si no tiene variantes, se sigue usando el stock del producto.
+        // Cada opción tiene su propio stock. La disponibilidad del producto
+        // depende del modo de variantes:
+        //  - 'combine' (Color + Talle): tiene que haber al menos una opción
+        //    con stock en CADA grupo (si un grupo se queda sin nada, no se
+        //    puede armar la combinación).
+        //  - 'single' (grupos como alternativas, ej: pulsera simple O con
+        //    piedras): alcanza con que CUALQUIER opción de cualquier grupo
+        //    tenga stock, porque el cliente elige una sola.
+        // Sin variantes, se usa el stock del producto.
+        $variantMode = $p['variant_mode'] ?? 'combine';
         if (!empty($groups)) {
-            $inStock = true;
-            foreach ($groups as $g) {
-                $groupHasStock = false;
-                foreach ($g['options'] as $o) {
-                    if ($o['stock'] > 0) { $groupHasStock = true; break; }
+            if ($variantMode === 'single') {
+                $inStock = false;
+                foreach ($groups as $g) {
+                    foreach ($g['options'] as $o) {
+                        if ($o['stock'] > 0) { $inStock = true; break 2; }
+                    }
                 }
-                if (!$groupHasStock) { $inStock = false; break; }
+            } else {
+                $inStock = true;
+                foreach ($groups as $g) {
+                    $groupHasStock = false;
+                    foreach ($g['options'] as $o) {
+                        if ($o['stock'] > 0) { $groupHasStock = true; break; }
+                    }
+                    if (!$groupHasStock) { $inStock = false; break; }
+                }
             }
         } else {
             $inStock = ((int) $p['stock']) > 0;
@@ -121,6 +135,7 @@ function fetch_all_products($conn) {
             'createdAt' => $p['created_at'],
             'inStock' => $inStock,
             'stock' => (int) $p['stock'],
+            'variantMode' => $variantMode,
             'tiers' => $tiers,
             'variantGroups' => $groups,
         ];

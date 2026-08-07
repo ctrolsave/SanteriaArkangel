@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS products (
   is_offer TINYINT(1) DEFAULT 0,
   offer_price DECIMAL(12,2) DEFAULT NULL,
   stock INT NOT NULL DEFAULT 20,
+  -- 'combine': el cliente elige una opción de CADA grupo (ej: Color + Talle).
+  -- 'single': los grupos son alternativas y elige UNA sola opción en total
+  -- (ej: pulsera simple O con piedras; velón de 1/3/7 días con su color).
+  variant_mode VARCHAR(20) NOT NULL DEFAULT 'combine',
   sort_order INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
