@@ -53,7 +53,7 @@ if ($method === 'POST') {
         $params[] = $logoPath;
         $types .= 's';
     }
-    $heroPath = handle_image_upload('hero_image', 'brand', 1800);
+    $heroPath = handle_image_upload('hero_image', 'brand', 1800, true);
     if ($heroPath) {
         $updates[] = 'hero_image = ?';
         $params[] = $heroPath;
@@ -64,7 +64,7 @@ if ($method === 'POST') {
         $params[] = '';
         $types .= 's';
     }
-    $heroMobilePath = handle_image_upload('hero_image_mobile', 'brand', 1000);
+    $heroMobilePath = handle_image_upload('hero_image_mobile', 'brand', 1000, true);
     if ($heroMobilePath) {
         $updates[] = 'hero_image_mobile = ?';
         $params[] = $heroMobilePath;

@@ -34,7 +34,7 @@ if ($method === 'POST') {
         respond(array_values($images));
     }
 
-    $newPath = handle_image_upload('photo', 'about', 1400);
+    $newPath = handle_image_upload('photo', 'about', 1400, true);
     if ($newPath) {
         $images[] = $newPath;
         save_images($conn, $images);

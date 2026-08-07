@@ -58,7 +58,7 @@ if ($method === 'POST') {
         respond(['error' => 'El producto necesita un nombre.'], 400);
     }
 
-    $imagePath = handle_image_upload('main_image', 'products', 1000);
+    $imagePath = handle_image_upload('main_image', 'products', 1000, true);
     $removeImage = ($_POST['remove_image'] ?? '0') === '1';
 
     if ($id > 0) {
@@ -126,7 +126,7 @@ if ($method === 'POST') {
             $value = trim($opt['value'] ?? '');
             if ($value === '') continue;
             $tempId = $opt['tempId'] ?? '';
-            $uploadedPath = $tempId !== '' ? handle_image_upload('opt_image_' . $tempId, 'options', 700) : null;
+            $uploadedPath = $tempId !== '' ? handle_image_upload('opt_image_' . $tempId, 'options', 700, true) : null;
             $finalImage = $uploadedPath ?: ($opt['existingImage'] ?? '');
             $optTiers = $opt['tiers'] ?? [];
             $optTiersJson = (is_array($optTiers) && count($optTiers) > 0) ? json_encode($optTiers) : null;

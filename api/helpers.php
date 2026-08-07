@@ -305,7 +305,7 @@ function handle_pdf_upload($fileField, $subfolder = 'brand') {
 
     return 'uploads/' . $subfolder . '/' . $filename;
 }
-function handle_image_upload($fileField, $subfolder, $maxWidth = 1000) {
+function handle_image_upload($fileField, $subfolder, $maxWidth = 1000, $forceJpeg = false) {
     if (empty($_FILES[$fileField]) || $_FILES[$fileField]['error'] !== UPLOAD_ERR_OK) {
         return null;
     }
@@ -331,12 +331,21 @@ function handle_image_upload($fileField, $subfolder, $maxWidth = 1000) {
     $newWidth = (int) round($width * $scale);
     $newHeight = (int) round($height * $scale);
 
+    // Para fotos (productos, opciones, galería) forzamos JPEG: un PNG de una
+    // foto pesa 5-15x más y hace lenta la tienda. Solo se conserva PNG (con
+    // su transparencia) cuando NO se fuerza JPEG, ej. el logo.
+    $keepPng = ($mime === 'image/png' && !$forceJpeg);
+
     $dst = imagecreatetruecolor($newWidth, $newHeight);
-    if ($mime === 'image/png' || $mime === 'image/webp') {
+    if ($keepPng || $mime === 'image/webp') {
         imagealphablending($dst, false);
         imagesavealpha($dst, true);
         $transparent = imagecolorallocatealpha($dst, 0, 0, 0, 127);
         imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $transparent);
+    } else {
+        // Fondo blanco por si la imagen original tenía transparencia (el JPEG no la soporta).
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $newWidth, $newHeight, $white);
     }
     imagecopyresampled($dst, $src, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
 
@@ -345,7 +354,6 @@ function handle_image_upload($fileField, $subfolder, $maxWidth = 1000) {
         mkdir($uploadsRoot, 0755, true);
     }
 
-    $keepPng = ($mime === 'image/png');
     $ext = $keepPng ? 'png' : 'jpg';
     $filename = bin2hex(random_bytes(8)) . '.' . $ext;
     $fullPath = $uploadsRoot . $filename;
